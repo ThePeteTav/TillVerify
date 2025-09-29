@@ -44,8 +44,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = user.claims.sub;
       const dbUser = await storage.getUser(userId);
       
+      const totalChecks = parseFloat(req.body.check1Amount || '0') + parseFloat(req.body.check2Amount || '0') + parseFloat(req.body.check3Amount || '0');
+      const expectedDeposit = parseFloat(req.body.startingCash) + parseFloat(req.body.cashSales) + parseFloat(req.body.checkSales) - parseFloat(req.body.cashOut);
+      const actualDeposit = parseFloat(req.body.cashCount) + totalChecks;
+      const difference = actualDeposit - expectedDeposit;
       const expectedCash = parseFloat(req.body.startingCash) + parseFloat(req.body.cashSales) - parseFloat(req.body.cashOut);
-      const difference = parseFloat(req.body.cashCount) - expectedCash;
       
       const validated = insertReconciliationSchema.parse({
         cashSales: req.body.cashSales,

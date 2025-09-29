@@ -252,8 +252,6 @@ export default function Dashboard() {
                 setDenominationCounts(counts);
                 setCashCount(total);
               }}
-              onSubmit={handleCashCountSubmit}
-              isLoading={createReconciliationMutation.isPending}
             />
             
             <CheckEntry
@@ -262,6 +260,18 @@ export default function Dashboard() {
                 setTotalChecks(total);
               }}
             />
+            
+            <div className="flex justify-center">
+              <Button
+                onClick={handleCashCountSubmit}
+                size="lg"
+                className="w-full max-w-md"
+                disabled={createReconciliationMutation.isPending}
+                data-testid="button-submit-cash-count"
+              >
+                {createReconciliationMutation.isPending ? "Processing..." : "Submit Cash & Check Count"}
+              </Button>
+            </div>
             
             {salesData && (
               <Card className="mt-6">

@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { FileText } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { FileText, Plus, Trash2 } from "lucide-react";
 
 export interface CheckData {
   check1Date: string;
@@ -19,35 +20,68 @@ export interface CheckData {
   check3Amount: number;
 }
 
+interface Check {
+  id: number;
+  date: string;
+  number: string;
+  name: string;
+  amount: number;
+}
+
 interface CheckEntryProps {
   onCheckDataChange: (data: CheckData, total: number) => void;
 }
 
 export default function CheckEntry({ onCheckDataChange }: CheckEntryProps) {
-  const [checkData, setCheckData] = useState<CheckData>({
-    check1Date: '',
-    check1Number: '',
-    check1Name: '',
-    check1Amount: 0,
-    check2Date: '',
-    check2Number: '',
-    check2Name: '',
-    check2Amount: 0,
-    check3Date: '',
-    check3Number: '',
-    check3Name: '',
-    check3Amount: 0,
-  });
+  const [checks, setChecks] = useState<Check[]>([
+    { id: 1, date: '', number: '', name: '', amount: 0 }
+  ]);
 
-  const handleInputChange = (field: keyof CheckData, value: string | number) => {
-    const newData = { ...checkData, [field]: value };
-    setCheckData(newData);
+  const updateCheckData = (newChecks: Check[]) => {
+    const checkData: CheckData = {
+      check1Date: newChecks[0]?.date || '',
+      check1Number: newChecks[0]?.number || '',
+      check1Name: newChecks[0]?.name || '',
+      check1Amount: newChecks[0]?.amount || 0,
+      check2Date: newChecks[1]?.date || '',
+      check2Number: newChecks[1]?.number || '',
+      check2Name: newChecks[1]?.name || '',
+      check2Amount: newChecks[1]?.amount || 0,
+      check3Date: newChecks[2]?.date || '',
+      check3Number: newChecks[2]?.number || '',
+      check3Name: newChecks[2]?.name || '',
+      check3Amount: newChecks[2]?.amount || 0,
+    };
     
-    const total = newData.check1Amount + newData.check2Amount + newData.check3Amount;
-    onCheckDataChange(newData, total);
+    const total = newChecks.reduce((sum, check) => sum + check.amount, 0);
+    onCheckDataChange(checkData, total);
   };
 
-  const totalChecks = checkData.check1Amount + checkData.check2Amount + checkData.check3Amount;
+  const addCheck = () => {
+    if (checks.length < 3) {
+      const newChecks = [...checks, { id: checks.length + 1, date: '', number: '', name: '', amount: 0 }];
+      setChecks(newChecks);
+      updateCheckData(newChecks);
+    }
+  };
+
+  const removeCheck = (id: number) => {
+    if (checks.length > 1) {
+      const newChecks = checks.filter(check => check.id !== id);
+      setChecks(newChecks);
+      updateCheckData(newChecks);
+    }
+  };
+
+  const handleCheckChange = (id: number, field: keyof Omit<Check, 'id'>, value: string | number) => {
+    const newChecks = checks.map(check => 
+      check.id === id ? { ...check, [field]: value } : check
+    );
+    setChecks(newChecks);
+    updateCheckData(newChecks);
+  };
+
+  const totalChecks = checks.reduce((sum, check) => sum + check.amount, 0);
 
   return (
     <Card>
@@ -57,162 +91,83 @@ export default function CheckEntry({ onCheckDataChange }: CheckEntryProps) {
           Check Entry
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Check 1 */}
-        <div className="space-y-3 p-4 border rounded-md">
-          <h4 className="text-sm font-medium">Check #1</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="check1Date">Check Date</Label>
-              <Input
-                id="check1Date"
-                type="date"
-                value={checkData.check1Date}
-                onChange={(e) => handleInputChange('check1Date', e.target.value)}
-                data-testid="input-check1-date"
-              />
+      <CardContent className="space-y-4">
+        {checks.map((check, index) => (
+          <div key={check.id} className="space-y-3 p-4 border rounded-md">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-medium">Check #{index + 1}</h4>
+              {checks.length > 1 && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => removeCheck(check.id)}
+                  data-testid={`button-remove-check-${index + 1}`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="check1Number">Check #</Label>
-              <Input
-                id="check1Number"
-                type="text"
-                placeholder="Check number"
-                value={checkData.check1Number}
-                onChange={(e) => handleInputChange('check1Number', e.target.value)}
-                data-testid="input-check1-number"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="check1Name">Name on Check</Label>
-              <Input
-                id="check1Name"
-                type="text"
-                placeholder="Name"
-                value={checkData.check1Name}
-                onChange={(e) => handleInputChange('check1Name', e.target.value)}
-                data-testid="input-check1-name"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="check1Amount">Amount</Label>
-              <Input
-                id="check1Amount"
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="0.00"
-                value={checkData.check1Amount || ''}
-                onChange={(e) => handleInputChange('check1Amount', parseFloat(e.target.value) || 0)}
-                data-testid="input-check1-amount"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor={`check${check.id}Date`}>Check Date</Label>
+                <Input
+                  id={`check${check.id}Date`}
+                  type="date"
+                  value={check.date}
+                  onChange={(e) => handleCheckChange(check.id, 'date', e.target.value)}
+                  data-testid={`input-check${index + 1}-date`}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`check${check.id}Number`}>Check #</Label>
+                <Input
+                  id={`check${check.id}Number`}
+                  type="text"
+                  placeholder="Check number"
+                  value={check.number}
+                  onChange={(e) => handleCheckChange(check.id, 'number', e.target.value)}
+                  data-testid={`input-check${index + 1}-number`}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`check${check.id}Name`}>Name on Check</Label>
+                <Input
+                  id={`check${check.id}Name`}
+                  type="text"
+                  placeholder="Name"
+                  value={check.name}
+                  onChange={(e) => handleCheckChange(check.id, 'name', e.target.value)}
+                  data-testid={`input-check${index + 1}-name`}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`check${check.id}Amount`}>Amount</Label>
+                <Input
+                  id={`check${check.id}Amount`}
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                  value={check.amount || ''}
+                  onChange={(e) => handleCheckChange(check.id, 'amount', parseFloat(e.target.value) || 0)}
+                  data-testid={`input-check${index + 1}-amount`}
+                />
+              </div>
             </div>
           </div>
-        </div>
+        ))}
 
-        {/* Check 2 */}
-        <div className="space-y-3 p-4 border rounded-md">
-          <h4 className="text-sm font-medium">Check #2</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="check2Date">Check Date</Label>
-              <Input
-                id="check2Date"
-                type="date"
-                value={checkData.check2Date}
-                onChange={(e) => handleInputChange('check2Date', e.target.value)}
-                data-testid="input-check2-date"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="check2Number">Check #</Label>
-              <Input
-                id="check2Number"
-                type="text"
-                placeholder="Check number"
-                value={checkData.check2Number}
-                onChange={(e) => handleInputChange('check2Number', e.target.value)}
-                data-testid="input-check2-number"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="check2Name">Name on Check</Label>
-              <Input
-                id="check2Name"
-                type="text"
-                placeholder="Name"
-                value={checkData.check2Name}
-                onChange={(e) => handleInputChange('check2Name', e.target.value)}
-                data-testid="input-check2-name"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="check2Amount">Amount</Label>
-              <Input
-                id="check2Amount"
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="0.00"
-                value={checkData.check2Amount || ''}
-                onChange={(e) => handleInputChange('check2Amount', parseFloat(e.target.value) || 0)}
-                data-testid="input-check2-amount"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Check 3 */}
-        <div className="space-y-3 p-4 border rounded-md">
-          <h4 className="text-sm font-medium">Check #3</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="check3Date">Check Date</Label>
-              <Input
-                id="check3Date"
-                type="date"
-                value={checkData.check3Date}
-                onChange={(e) => handleInputChange('check3Date', e.target.value)}
-                data-testid="input-check3-date"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="check3Number">Check #</Label>
-              <Input
-                id="check3Number"
-                type="text"
-                placeholder="Check number"
-                value={checkData.check3Number}
-                onChange={(e) => handleInputChange('check3Number', e.target.value)}
-                data-testid="input-check3-number"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="check3Name">Name on Check</Label>
-              <Input
-                id="check3Name"
-                type="text"
-                placeholder="Name"
-                value={checkData.check3Name}
-                onChange={(e) => handleInputChange('check3Name', e.target.value)}
-                data-testid="input-check3-name"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="check3Amount">Amount</Label>
-              <Input
-                id="check3Amount"
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="0.00"
-                value={checkData.check3Amount || ''}
-                onChange={(e) => handleInputChange('check3Amount', parseFloat(e.target.value) || 0)}
-                data-testid="input-check3-amount"
-              />
-            </div>
-          </div>
-        </div>
+        {checks.length < 3 && (
+          <Button
+            variant="outline"
+            onClick={addCheck}
+            className="w-full"
+            data-testid="button-add-check"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Another Check
+          </Button>
+        )}
 
         <div className="pt-4 border-t">
           <div className="flex justify-between items-center">

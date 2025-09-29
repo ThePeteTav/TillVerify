@@ -20,8 +20,6 @@ interface DenominationCounts {
 
 interface DenominationInputProps {
   onCountsChange: (counts: DenominationCounts, total: number) => void;
-  onSubmit: () => void;
-  isLoading?: boolean;
 }
 
 const denominations = [
@@ -37,7 +35,7 @@ const denominations = [
   { key: 'hundreds' as keyof DenominationCounts, label: '$100 Bills', value: 100, icon: DollarSign },
 ];
 
-export default function DenominationInput({ onCountsChange, onSubmit, isLoading }: DenominationInputProps) {
+export default function DenominationInput({ onCountsChange }: DenominationInputProps) {
   const [counts, setCounts] = useState<DenominationCounts>({
     hundreds: 0,
     fifties: 0,
@@ -109,21 +107,12 @@ export default function DenominationInput({ onCountsChange, onSubmit, isLoading 
 
       <Card>
         <CardContent className="pt-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between">
             <span className="text-lg font-medium">Total Cash Count:</span>
             <span className="text-2xl font-bold text-primary" data-testid="text-total-cash">
               ${total.toFixed(2)}
             </span>
           </div>
-          <Button 
-            onClick={onSubmit} 
-            className="w-full" 
-            size="lg"
-            disabled={isLoading}
-            data-testid="button-submit-cash-count"
-          >
-            {isLoading ? "Processing..." : "Submit Cash Count"}
-          </Button>
         </CardContent>
       </Card>
     </div>
