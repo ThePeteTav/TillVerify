@@ -1,15 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Calculator, CreditCard, Banknote } from "lucide-react";
+import { Calculator, FileText, Banknote } from "lucide-react";
 
-interface SalesData {
-  totalSales: number;
+export interface SalesData {
   cashSales: number;
-  cardSales: number;
+  checkSales: number;
   cashOut: number;
   startingCash: number;
   notes: string;
@@ -19,17 +18,23 @@ interface SalesEntryFormProps {
   onSalesDataChange: (data: SalesData) => void;
   onSubmit: () => void;
   isLoading?: boolean;
+  startingCash?: number;
 }
 
-export default function SalesEntryForm({ onSalesDataChange, onSubmit, isLoading }: SalesEntryFormProps) {
+export default function SalesEntryForm({ onSalesDataChange, onSubmit, isLoading, startingCash = 0 }: SalesEntryFormProps) {
   const [salesData, setSalesData] = useState<SalesData>({
-    totalSales: 0,
     cashSales: 0,
-    cardSales: 0,
+    checkSales: 0,
     cashOut: 0,
-    startingCash: 0,
+    startingCash: startingCash,
     notes: '',
   });
+
+  useEffect(() => {
+    const newData = { ...salesData, startingCash };
+    setSalesData(newData);
+    onSalesDataChange(newData);
+  }, [startingCash]);
 
   const handleInputChange = (field: keyof SalesData, value: string | number) => {
     const newData = { ...salesData, [field]: value };
@@ -51,25 +56,9 @@ export default function SalesEntryForm({ onSalesDataChange, onSubmit, isLoading 
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="totalSales" className="flex items-center gap-2">
-                <Calculator className="h-4 w-4" />
-                Total Sales (POS)
-              </Label>
-              <Input
-                id="totalSales"
-                type="number"
-                step="0.01"
-                min="0"
-                value={salesData.totalSales}
-                onChange={(e) => handleInputChange('totalSales', parseFloat(e.target.value) || 0)}
-                data-testid="input-total-sales"
-              />
-            </div>
-
-            <div className="space-y-2">
               <Label htmlFor="startingCash" className="flex items-center gap-2">
                 <Banknote className="h-4 w-4" />
-                Starting Cash
+                Starting Cash (From Settings)
               </Label>
               <Input
                 id="startingCash"
@@ -77,8 +66,9 @@ export default function SalesEntryForm({ onSalesDataChange, onSubmit, isLoading 
                 step="0.01"
                 min="0"
                 value={salesData.startingCash}
-                onChange={(e) => handleInputChange('startingCash', parseFloat(e.target.value) || 0)}
+                disabled
                 data-testid="input-starting-cash"
+                className="bg-muted"
               />
             </div>
 
@@ -99,18 +89,18 @@ export default function SalesEntryForm({ onSalesDataChange, onSubmit, isLoading 
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="cardSales" className="flex items-center gap-2">
-                <CreditCard className="h-4 w-4" />
-                Card Sales
+              <Label htmlFor="checkSales" className="flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                Check Sales
               </Label>
               <Input
-                id="cardSales"
+                id="checkSales"
                 type="number"
                 step="0.01"
                 min="0"
-                value={salesData.cardSales}
-                onChange={(e) => handleInputChange('cardSales', parseFloat(e.target.value) || 0)}
-                data-testid="input-card-sales"
+                value={salesData.checkSales}
+                onChange={(e) => handleInputChange('checkSales', parseFloat(e.target.value) || 0)}
+                data-testid="input-check-sales"
               />
             </div>
 
@@ -172,4 +162,3 @@ export default function SalesEntryForm({ onSalesDataChange, onSubmit, isLoading 
   );
 }
 
-export type { SalesData };

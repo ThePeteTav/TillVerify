@@ -25,16 +25,16 @@ interface DenominationInputProps {
 }
 
 const denominations = [
-  { key: 'hundreds' as keyof DenominationCounts, label: '$100 Bills', value: 100, icon: DollarSign },
-  { key: 'fifties' as keyof DenominationCounts, label: '$50 Bills', value: 50, icon: DollarSign },
-  { key: 'twenties' as keyof DenominationCounts, label: '$20 Bills', value: 20, icon: DollarSign },
-  { key: 'tens' as keyof DenominationCounts, label: '$10 Bills', value: 10, icon: DollarSign },
-  { key: 'fives' as keyof DenominationCounts, label: '$5 Bills', value: 5, icon: DollarSign },
-  { key: 'ones' as keyof DenominationCounts, label: '$1 Bills', value: 1, icon: DollarSign },
-  { key: 'quarters' as keyof DenominationCounts, label: 'Quarters', value: 0.25, icon: Coins },
-  { key: 'dimes' as keyof DenominationCounts, label: 'Dimes', value: 0.10, icon: Coins },
-  { key: 'nickels' as keyof DenominationCounts, label: 'Nickels', value: 0.05, icon: Coins },
   { key: 'pennies' as keyof DenominationCounts, label: 'Pennies', value: 0.01, icon: Coins },
+  { key: 'nickels' as keyof DenominationCounts, label: 'Nickels', value: 0.05, icon: Coins },
+  { key: 'dimes' as keyof DenominationCounts, label: 'Dimes', value: 0.10, icon: Coins },
+  { key: 'quarters' as keyof DenominationCounts, label: 'Quarters', value: 0.25, icon: Coins },
+  { key: 'ones' as keyof DenominationCounts, label: '$1 Bills', value: 1, icon: DollarSign },
+  { key: 'fives' as keyof DenominationCounts, label: '$5 Bills', value: 5, icon: DollarSign },
+  { key: 'tens' as keyof DenominationCounts, label: '$10 Bills', value: 10, icon: DollarSign },
+  { key: 'twenties' as keyof DenominationCounts, label: '$20 Bills', value: 20, icon: DollarSign },
+  { key: 'fifties' as keyof DenominationCounts, label: '$50 Bills', value: 50, icon: DollarSign },
+  { key: 'hundreds' as keyof DenominationCounts, label: '$100 Bills', value: 100, icon: DollarSign },
 ];
 
 export default function DenominationInput({ onCountsChange, onSubmit, isLoading }: DenominationInputProps) {

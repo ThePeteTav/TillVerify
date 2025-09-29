@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Calculator, User, LogOut, Settings, BarChart3 } from "lucide-react";
 import SalesEntryForm, { type SalesData } from "@/components/SalesEntryForm";
 import DenominationInput, { type DenominationCounts } from "@/components/DenominationInput";
+import CheckEntry, { type CheckData } from "@/components/CheckEntry";
 import ReconciliationResults from "@/components/ReconciliationResults";
+import SettingsDialog from "@/components/SettingsDialog";
 
 type Step = 'sales' | 'counting' | 'results';
 
@@ -21,7 +23,13 @@ export default function Dashboard() {
   const [salesData, setSalesData] = useState<SalesData | null>(null);
   const [denominationCounts, setDenominationCounts] = useState<DenominationCounts | null>(null);
   const [cashCount, setCashCount] = useState(0);
+  const [checkData, setCheckData] = useState<CheckData | null>(null);
+  const [totalChecks, setTotalChecks] = useState(0);
   const [reconciliationId, setReconciliationId] = useState<number | null>(null);
+
+  const { data: settings } = useQuery<{ startingCash: string; tolerance: string; requireManagerApproval: boolean }>({
+    queryKey: ['/api/settings'],
+  });
 
   const createReconciliationMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -55,14 +63,34 @@ export default function Dashboard() {
   };
 
   const handleCashCountSubmit = () => {
-    if (!denominationCounts || !salesData) return;
+    if (!denominationCounts || !salesData || !checkData) return;
+    
+    if (Math.abs(salesData.checkSales - totalChecks) > 0.01) {
+      toast({
+        title: "Check Mismatch",
+        description: `Check sales ($${salesData.checkSales.toFixed(2)}) does not match total checks entered ($${totalChecks.toFixed(2)}). Please verify.`,
+        variant: "destructive",
+      });
+      return;
+    }
     
     createReconciliationMutation.mutate({
-      totalSales: salesData.totalSales,
       cashSales: salesData.cashSales,
-      cardSales: salesData.cardSales,
+      checkSales: totalChecks,
       cashOut: salesData.cashOut,
       startingCash: salesData.startingCash,
+      check1Date: checkData.check1Date || null,
+      check1Number: checkData.check1Number || null,
+      check1Name: checkData.check1Name || null,
+      check1Amount: checkData.check1Amount || 0,
+      check2Date: checkData.check2Date || null,
+      check2Number: checkData.check2Number || null,
+      check2Name: checkData.check2Name || null,
+      check2Amount: checkData.check2Amount || 0,
+      check3Date: checkData.check3Date || null,
+      check3Number: checkData.check3Number || null,
+      check3Name: checkData.check3Name || null,
+      check3Amount: checkData.check3Amount || 0,
       hundreds: denominationCounts.hundreds,
       fifties: denominationCounts.fifties,
       twenties: denominationCounts.twenties,
@@ -93,6 +121,8 @@ export default function Dashboard() {
     setSalesData(null);
     setDenominationCounts(null);
     setCashCount(0);
+    setCheckData(null);
+    setTotalChecks(0);
     setReconciliationId(null);
   };
 
@@ -140,9 +170,7 @@ export default function Dashboard() {
             </div>
             
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="icon">
-                <Settings className="h-4 w-4" />
-              </Button>
+              <SettingsDialog />
               <Button variant="outline" onClick={handleLogout} data-testid="button-logout">
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout
@@ -212,12 +240,13 @@ export default function Dashboard() {
               onSalesDataChange={setSalesData}
               onSubmit={handleSalesSubmit}
               isLoading={false}
+              startingCash={settings?.startingCash ? parseFloat(settings.startingCash) : 0}
             />
           </div>
         )}
 
         {currentStep === 'counting' && (
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-4xl mx-auto space-y-6">
             <DenominationInput
               onCountsChange={(counts, total) => {
                 setDenominationCounts(counts);
@@ -225,6 +254,13 @@ export default function Dashboard() {
               }}
               onSubmit={handleCashCountSubmit}
               isLoading={createReconciliationMutation.isPending}
+            />
+            
+            <CheckEntry
+              onCheckDataChange={(data, total) => {
+                setCheckData(data);
+                setTotalChecks(total);
+              }}
             />
             
             {salesData && (
@@ -245,11 +281,12 @@ export default function Dashboard() {
           </div>
         )}
 
-        {currentStep === 'results' && salesData && denominationCounts && (
+        {currentStep === 'results' && salesData && denominationCounts && checkData && (
           <div className="max-w-4xl mx-auto">
             <ReconciliationResults
               salesData={salesData}
               cashCount={cashCount}
+              totalChecks={totalChecks}
               denominationCounts={denominationCounts}
               onGeneratePDF={handleGeneratePDF}
               onExportExcel={handleExportExcel}

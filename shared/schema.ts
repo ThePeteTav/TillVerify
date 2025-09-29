@@ -37,11 +37,25 @@ export const reconciliations = pgTable("reconciliations", {
   userName: text("user_name").notNull(),
   userEmail: text("user_email").notNull(),
   
-  totalSales: decimal("total_sales", { precision: 10, scale: 2 }).notNull(),
   cashSales: decimal("cash_sales", { precision: 10, scale: 2 }).notNull(),
-  cardSales: decimal("card_sales", { precision: 10, scale: 2 }).notNull(),
+  checkSales: decimal("check_sales", { precision: 10, scale: 2 }).notNull(),
   cashOut: decimal("cash_out", { precision: 10, scale: 2 }).notNull(),
   startingCash: decimal("starting_cash", { precision: 10, scale: 2 }).notNull(),
+  
+  check1Date: text("check1_date"),
+  check1Number: text("check1_number"),
+  check1Name: text("check1_name"),
+  check1Amount: decimal("check1_amount", { precision: 10, scale: 2 }).default('0.00'),
+  
+  check2Date: text("check2_date"),
+  check2Number: text("check2_number"),
+  check2Name: text("check2_name"),
+  check2Amount: decimal("check2_amount", { precision: 10, scale: 2 }).default('0.00'),
+  
+  check3Date: text("check3_date"),
+  check3Number: text("check3_number"),
+  check3Name: text("check3_name"),
+  check3Amount: decimal("check3_amount", { precision: 10, scale: 2 }).default('0.00'),
   
   hundreds: integer("hundreds").notNull().default(0),
   fifties: integer("fifties").notNull().default(0),
@@ -76,14 +90,16 @@ export const insertReconciliationSchema = createInsertSchema(reconciliations).om
   id: true,
   createdAt: true,
 }).extend({
-  totalSales: z.preprocess((val) => String(val), z.string()),
   cashSales: z.preprocess((val) => String(val), z.string()),
-  cardSales: z.preprocess((val) => String(val), z.string()),
+  checkSales: z.preprocess((val) => String(val), z.string()),
   cashOut: z.preprocess((val) => String(val), z.string()),
   startingCash: z.preprocess((val) => String(val), z.string()),
   cashCount: z.preprocess((val) => String(val), z.string()),
   expectedCash: z.preprocess((val) => String(val), z.string()),
   difference: z.preprocess((val) => String(val), z.string()),
+  check1Amount: z.preprocess((val) => val ? String(val) : '0.00', z.string().optional()),
+  check2Amount: z.preprocess((val) => val ? String(val) : '0.00', z.string().optional()),
+  check3Amount: z.preprocess((val) => val ? String(val) : '0.00', z.string().optional()),
 });
 
 export type UpsertUser = typeof users.$inferInsert;

@@ -10,6 +10,7 @@ import { type DenominationCounts } from "./DenominationInput";
 interface ReconciliationResultsProps {
   salesData: SalesData;
   cashCount: number;
+  totalChecks: number;
   denominationCounts: DenominationCounts;
   onGeneratePDF: () => void;
   onExportExcel: () => void;
@@ -19,6 +20,7 @@ interface ReconciliationResultsProps {
 export default function ReconciliationResults({ 
   salesData, 
   cashCount, 
+  totalChecks,
   denominationCounts,
   onGeneratePDF,
   onExportExcel,
@@ -130,22 +132,18 @@ export default function ReconciliationResults({
           <CardTitle>Summary</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
             <div>
-              <div className="text-sm text-muted-foreground">Total Sales</div>
-              <div className="text-lg font-semibold">${salesData.totalSales.toFixed(2)}</div>
+              <div className="text-sm text-muted-foreground">Total Cash</div>
+              <div className="text-lg font-semibold" data-testid="text-summary-total-cash">${cashCount.toFixed(2)}</div>
             </div>
             <div>
-              <div className="text-sm text-muted-foreground">Cash Sales</div>
-              <div className="text-lg font-semibold">${salesData.cashSales.toFixed(2)}</div>
+              <div className="text-sm text-muted-foreground">Total Checks</div>
+              <div className="text-lg font-semibold" data-testid="text-summary-total-checks">${totalChecks.toFixed(2)}</div>
             </div>
-            <div>
-              <div className="text-sm text-muted-foreground">Card Sales</div>
-              <div className="text-lg font-semibold">${salesData.cardSales.toFixed(2)}</div>
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground">Cash Count</div>
-              <div className="text-lg font-semibold">${cashCount.toFixed(2)}</div>
+            <div className="border-l pl-4">
+              <div className="text-sm text-muted-foreground">Total Deposit</div>
+              <div className="text-2xl font-bold text-primary" data-testid="text-summary-total-deposit">${(cashCount + totalChecks).toFixed(2)}</div>
             </div>
           </div>
         </CardContent>
