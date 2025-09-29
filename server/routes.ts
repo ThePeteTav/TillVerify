@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { insertReconciliationSchema, insertSettingsSchema } from "@shared/schema";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { generateReconciliationPDF, generateReconciliationExcel } from "./reportGenerator";
+import { submitToGoogleSheets } from "./googleSheets";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   await setupAuth(app);
@@ -167,6 +168,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename=my-reconciliations.xlsx`);
       res.send(excelBuffer);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/reconciliations/:id/submit", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const userId = req.user.claims.sub;
+      const reconciliation = await storage.getReconciliation(id);
+      
+      if (!reconciliation) {
+        return res.status(404).json({ error: "Reconciliation not found" });
+      }
+      
+      if (reconciliation.userId !== userId) {
+        return res.status(403).json({ error: "Forbidden: You can only submit your own reconciliations" });
+      }
+      
+      if (reconciliation.isSubmitted) {
+        return res.status(400).json({ error: "This reconciliation has already been submitted" });
+      }
+      
+      const settings = await storage.getSettings();
+      const spreadsheetId = settings?.googleSheetId;
+      
+      if (!spreadsheetId) {
+        return res.status(400).json({ error: "Google Sheet ID not configured. Please configure it in settings." });
+      }
+      
+      await submitToGoogleSheets(reconciliation, spreadsheetId);
+      
+      await storage.markReconciliationAsSubmitted(id);
+      
+      const updatedReconciliation = await storage.getReconciliation(id);
+      res.json(updatedReconciliation);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CheckCircle, XCircle, Download, FileText, AlertTriangle } from "lucide-react";
+import { CheckCircle, XCircle, Download, FileText, AlertTriangle, Send } from "lucide-react";
 import { type SalesData } from "./SalesEntryForm";
 import { type DenominationCounts } from "./DenominationInput";
 
@@ -12,9 +12,13 @@ interface ReconciliationResultsProps {
   cashCount: number;
   totalChecks: number;
   denominationCounts: DenominationCounts;
+  reconciliationId?: number;
+  isSubmitted?: boolean;
   onGeneratePDF: () => void;
   onExportExcel: () => void;
+  onFinalSubmit?: () => void;
   isGeneratingReport?: boolean;
+  isSubmitting?: boolean;
 }
 
 export default function ReconciliationResults({ 
@@ -22,14 +26,19 @@ export default function ReconciliationResults({
   cashCount, 
   totalChecks,
   denominationCounts,
+  reconciliationId,
+  isSubmitted = false,
   onGeneratePDF,
   onExportExcel,
-  isGeneratingReport
+  onFinalSubmit,
+  isGeneratingReport,
+  isSubmitting = false
 }: ReconciliationResultsProps) {
-  const expectedCash = salesData.startingCash + salesData.cashSales - salesData.cashOut;
-  const difference = cashCount - expectedCash;
+  const expectedDeposit = salesData.startingCash + salesData.cashSales + salesData.checkSales - salesData.cashOut;
+  const actualDeposit = cashCount + totalChecks;
+  const difference = actualDeposit - expectedDeposit;
   const isMatching = Math.abs(difference) < 0.01; // Account for floating point precision
-  const tolerance = 5.00; // $5 tolerance
+  const tolerance = 5.00; // $5 tolerance - ideally from settings
   const isWithinTolerance = Math.abs(difference) <= tolerance;
 
   const getStatusIcon = () => {
@@ -76,7 +85,7 @@ export default function ReconciliationResults({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Expected Cash</CardTitle>
+            <CardTitle className="text-lg">Expected Deposit</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
@@ -89,13 +98,17 @@ export default function ReconciliationResults({
                 <span data-testid="text-cash-sales">+${salesData.cashSales.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
+                <span>Check Sales:</span>
+                <span data-testid="text-check-sales">+${salesData.checkSales.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
                 <span>Cash Out:</span>
                 <span data-testid="text-cash-out">-${salesData.cashOut.toFixed(2)}</span>
               </div>
               <hr />
               <div className="flex justify-between font-semibold text-lg">
                 <span>Expected Total:</span>
-                <span data-testid="text-expected-total">${expectedCash.toFixed(2)}</span>
+                <span data-testid="text-expected-total">${expectedDeposit.toFixed(2)}</span>
               </div>
             </div>
           </CardContent>
@@ -103,15 +116,24 @@ export default function ReconciliationResults({
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Actual Cash Count</CardTitle>
+            <CardTitle className="text-lg">Actual Deposit</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              <div className="text-2xl font-bold text-primary" data-testid="text-actual-cash">
-                ${cashCount.toFixed(2)}
+              <div className="flex justify-between">
+                <span>Cash Count:</span>
+                <span>${cashCount.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Total Checks:</span>
+                <span>${totalChecks.toFixed(2)}</span>
+              </div>
+              <hr />
+              <div className="text-2xl font-bold text-primary" data-testid="text-actual-deposit">
+                ${actualDeposit.toFixed(2)}
               </div>
               <div className="text-sm text-muted-foreground">
-                Counted from denominations
+                Cash + Checks
               </div>
               <hr />
               <div className={`flex justify-between font-semibold text-lg ${
@@ -172,6 +194,43 @@ export default function ReconciliationResults({
           Export to Excel
         </Button>
       </div>
+      
+      {onFinalSubmit && reconciliationId && (
+        <Card className="bg-primary/5 border-primary/20">
+          <CardContent className="pt-6">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold">Final Submission</h3>
+                <p className="text-sm text-muted-foreground">
+                  {isSubmitted 
+                    ? "This reconciliation has been submitted to Google Sheets and cannot be edited." 
+                    : "Click below to submit this reconciliation to Google Sheets. Once submitted, it cannot be edited."}
+                </p>
+              </div>
+              <Button
+                onClick={onFinalSubmit}
+                size="lg"
+                className="w-full"
+                disabled={isSubmitted || isSubmitting}
+                variant={isSubmitted ? "secondary" : "default"}
+                data-testid="button-final-submit"
+              >
+                {isSubmitted ? (
+                  <>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Submitted to Google Sheets
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4 mr-2" />
+                    {isSubmitting ? "Submitting..." : "Submit to Google Sheets"}
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       
       {salesData.notes && (
         <Card>

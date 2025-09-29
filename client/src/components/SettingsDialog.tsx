@@ -21,6 +21,7 @@ interface SettingsData {
   startingCash: string;
   tolerance: string;
   requireManagerApproval: boolean;
+  googleSheetId: string;
 }
 
 interface SettingsDialogProps {
@@ -41,6 +42,7 @@ export default function SettingsDialog({ trigger }: SettingsDialogProps) {
     startingCash: settings?.startingCash || '200.00',
     tolerance: settings?.tolerance || '5.00',
     requireManagerApproval: settings?.requireManagerApproval ?? true,
+    googleSheetId: settings?.googleSheetId || '',
   });
 
   useEffect(() => {
@@ -49,6 +51,7 @@ export default function SettingsDialog({ trigger }: SettingsDialogProps) {
         startingCash: settings.startingCash,
         tolerance: settings.tolerance,
         requireManagerApproval: settings.requireManagerApproval,
+        googleSheetId: settings.googleSheetId || '',
       });
     }
   }, [open, settings]);
@@ -82,13 +85,6 @@ export default function SettingsDialog({ trigger }: SettingsDialogProps) {
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
-    if (newOpen && settings) {
-      setFormData({
-        startingCash: settings.startingCash,
-        tolerance: settings.tolerance,
-        requireManagerApproval: settings.requireManagerApproval,
-      });
-    }
   };
 
   return (
@@ -155,6 +151,20 @@ export default function SettingsDialog({ trigger }: SettingsDialogProps) {
                 onCheckedChange={(checked) => setFormData({ ...formData, requireManagerApproval: checked })}
                 data-testid="switch-manager-approval"
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="googleSheetId">Google Sheet ID (Optional)</Label>
+              <Input
+                id="googleSheetId"
+                type="text"
+                placeholder="Enter Google Sheet ID from URL"
+                value={formData.googleSheetId}
+                onChange={(e) => setFormData({ ...formData, googleSheetId: e.target.value })}
+                data-testid="input-setting-google-sheet-id"
+              />
+              <p className="text-sm text-muted-foreground">
+                The ID from your Google Sheet URL (the part after /d/)
+              </p>
             </div>
           </div>
           <DialogFooter>

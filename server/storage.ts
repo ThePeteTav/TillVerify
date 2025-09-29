@@ -12,6 +12,7 @@ export interface IStorage {
   getReconciliation(id: number): Promise<Reconciliation | undefined>;
   getReconciliations(limit?: number): Promise<Reconciliation[]>;
   getReconciliationsByUser(userId: string): Promise<Reconciliation[]>;
+  markReconciliationAsSubmitted(id: number): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -29,6 +30,7 @@ export class MemStorage implements IStorage {
       startingCash: '200.00',
       tolerance: '5.00',
       requireManagerApproval: true,
+      googleSheetId: null,
       updatedAt: new Date(),
     };
   }
@@ -59,6 +61,7 @@ export class MemStorage implements IStorage {
         startingCash: '200.00',
         tolerance: '5.00',
         requireManagerApproval: true,
+        googleSheetId: null,
         updatedAt: new Date(),
       };
     }
@@ -66,11 +69,13 @@ export class MemStorage implements IStorage {
   }
 
   async updateSettings(insertSettings: InsertSettings): Promise<Settings> {
+    const currentSettings = await this.getSettings();
     const updated: Settings = {
-      id: this.settings?.id || 1,
-      startingCash: insertSettings.startingCash || '200.00',
-      tolerance: insertSettings.tolerance || '5.00',
-      requireManagerApproval: insertSettings.requireManagerApproval !== undefined ? insertSettings.requireManagerApproval : true,
+      id: currentSettings.id,
+      startingCash: insertSettings.startingCash || currentSettings.startingCash,
+      tolerance: insertSettings.tolerance || currentSettings.tolerance,
+      requireManagerApproval: insertSettings.requireManagerApproval !== undefined ? insertSettings.requireManagerApproval : currentSettings.requireManagerApproval,
+      googleSheetId: insertSettings.googleSheetId !== undefined ? insertSettings.googleSheetId || null : currentSettings.googleSheetId,
       updatedAt: new Date(),
     };
     this.settings = updated;
@@ -84,11 +89,22 @@ export class MemStorage implements IStorage {
       userId: insertReconciliation.userId,
       userName: insertReconciliation.userName,
       userEmail: insertReconciliation.userEmail,
-      totalSales: insertReconciliation.totalSales,
       cashSales: insertReconciliation.cashSales,
-      cardSales: insertReconciliation.cardSales,
+      checkSales: insertReconciliation.checkSales,
       cashOut: insertReconciliation.cashOut,
       startingCash: insertReconciliation.startingCash,
+      check1Date: insertReconciliation.check1Date || null,
+      check1Number: insertReconciliation.check1Number || null,
+      check1Name: insertReconciliation.check1Name || null,
+      check1Amount: insertReconciliation.check1Amount || '0.00',
+      check2Date: insertReconciliation.check2Date || null,
+      check2Number: insertReconciliation.check2Number || null,
+      check2Name: insertReconciliation.check2Name || null,
+      check2Amount: insertReconciliation.check2Amount || '0.00',
+      check3Date: insertReconciliation.check3Date || null,
+      check3Number: insertReconciliation.check3Number || null,
+      check3Name: insertReconciliation.check3Name || null,
+      check3Amount: insertReconciliation.check3Amount || '0.00',
       hundreds: insertReconciliation.hundreds || 0,
       fifties: insertReconciliation.fifties || 0,
       twenties: insertReconciliation.twenties || 0,
@@ -104,6 +120,8 @@ export class MemStorage implements IStorage {
       difference: insertReconciliation.difference,
       notes: insertReconciliation.notes || null,
       status: insertReconciliation.status || 'completed',
+      isSubmitted: false,
+      submittedAt: null,
       createdAt: new Date(),
     };
     this.reconciliations.set(id, reconciliation);
@@ -123,6 +141,15 @@ export class MemStorage implements IStorage {
     return Array.from(this.reconciliations.values())
       .filter(r => r.userId === userId)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async markReconciliationAsSubmitted(id: number): Promise<void> {
+    const reconciliation = this.reconciliations.get(id);
+    if (reconciliation) {
+      reconciliation.isSubmitted = true;
+      reconciliation.submittedAt = new Date();
+      this.reconciliations.set(id, reconciliation);
+    }
   }
 }
 

@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Calculator, User, LogOut, Settings, BarChart3 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Calculator, User, LogOut, Settings, BarChart3, ArrowLeft } from "lucide-react";
 import SalesEntryForm, { type SalesData } from "@/components/SalesEntryForm";
 import DenominationInput, { type DenominationCounts } from "@/components/DenominationInput";
 import CheckEntry, { type CheckData } from "@/components/CheckEntry";
@@ -26,6 +27,7 @@ export default function Dashboard() {
   const [checkData, setCheckData] = useState<CheckData | null>(null);
   const [totalChecks, setTotalChecks] = useState(0);
   const [reconciliationId, setReconciliationId] = useState<number | null>(null);
+  const [isSubmitted, setIsSubmitted] = useState(false);
 
   const { data: settings } = useQuery<{ startingCash: string; tolerance: string; requireManagerApproval: boolean }>({
     queryKey: ['/api/settings'],
@@ -116,6 +118,33 @@ export default function Dashboard() {
     window.open('/api/reconciliations/export/excel', '_blank');
   };
 
+  const submitToGoogleSheetsMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest('POST', `/api/reconciliations/${id}/submit`, {});
+      return await res.json();
+    },
+    onSuccess: (data: any) => {
+      setIsSubmitted(true);
+      toast({
+        title: "Success",
+        description: "Reconciliation submitted to Google Sheets successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleFinalSubmit = () => {
+    if (reconciliationId && !isSubmitted) {
+      submitToGoogleSheetsMutation.mutate(reconciliationId);
+    }
+  };
+
   const resetReconciliation = () => {
     setCurrentStep('sales');
     setSalesData(null);
@@ -124,6 +153,7 @@ export default function Dashboard() {
     setCheckData(null);
     setTotalChecks(0);
     setReconciliationId(null);
+    setIsSubmitted(false);
   };
 
   const getStepTitle = () => {
@@ -247,6 +277,14 @@ export default function Dashboard() {
 
         {currentStep === 'counting' && (
           <div className="max-w-4xl mx-auto space-y-6">
+            <Button
+              variant="outline"
+              onClick={() => setCurrentStep('sales')}
+              data-testid="button-back-to-sales"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Sales Entry
+            </Button>
             <DenominationInput
               onCountsChange={(counts, total) => {
                 setDenominationCounts(counts);
@@ -292,15 +330,36 @@ export default function Dashboard() {
         )}
 
         {currentStep === 'results' && salesData && denominationCounts && checkData && (
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-4xl mx-auto space-y-6">
+            {!isSubmitted && (
+              <Button
+                variant="outline"
+                onClick={() => setCurrentStep('counting')}
+                data-testid="button-back-to-counting"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Cash Count
+              </Button>
+            )}
+            {isSubmitted && (
+              <Alert>
+                <AlertDescription>
+                  This reconciliation has been submitted to Google Sheets and cannot be edited. You can generate reports or start a new reconciliation.
+                </AlertDescription>
+              </Alert>
+            )}
             <ReconciliationResults
               salesData={salesData}
               cashCount={cashCount}
               totalChecks={totalChecks}
               denominationCounts={denominationCounts}
+              reconciliationId={reconciliationId || undefined}
+              isSubmitted={isSubmitted}
               onGeneratePDF={handleGeneratePDF}
               onExportExcel={handleExportExcel}
+              onFinalSubmit={handleFinalSubmit}
               isGeneratingReport={false}
+              isSubmitting={submitToGoogleSheetsMutation.isPending}
             />
             
             <div className="flex justify-center mt-8">
