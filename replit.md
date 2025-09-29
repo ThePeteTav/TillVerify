@@ -2,7 +2,7 @@
 
 ## Overview
 
-A professional web application designed for accurate daily cash register reconciliation and sales tracking. The system enables employees to systematically count cash denominations, record sales data, and compare physical cash counts against expected totals. It features automated discrepancy detection, digital record keeping, and comprehensive reporting capabilities (PDF and Excel exports). Built with a focus on error prevention, financial accuracy, and audit-ready documentation.
+A professional web application designed for accurate daily cash register reconciliation and sales tracking. The system enables employees to systematically count cash denominations, record sales data, and compare physical cash counts against expected totals. It features automated discrepancy detection (including both cash AND checks), digital record keeping, comprehensive reporting capabilities (PDF and Excel exports), Google Sheets cloud submission, and edit prevention after final submission. Built with a focus on error prevention, financial accuracy, and audit-ready documentation.
 
 ## User Preferences
 
@@ -28,9 +28,10 @@ Preferred communication style: Simple, everyday language.
 - Multi-step reconciliation workflow: Sales entry → Cash counting (with checks) → Results display
 - Sales entry form: Cash sales and check sales input with read-only starting cash (from settings)
 - Denomination input system displaying smallest to largest with automatic calculation
-- Check entry component: 3 check lines with date, number, name, amount fields and automatic total calculation
-- Reconciliation results: Displays total cash, total checks, and total deposit (sum)
-- Settings dialog: Configurable starting cash, tolerance, and manager approval requirements
+- Check entry component: Dynamic entry system (starts with 1 check, add up to 3 with plus button, submit button located under checks)
+- Reconciliation results: Displays expected deposit vs actual deposit (both including cash + checks), discrepancy calculation, and final submission to Google Sheets
+- Back navigation: Buttons between all workflow steps with edit prevention after final submission
+- Settings dialog: Configurable starting cash, tolerance, manager approval requirements, and Google Sheets ID
 - Validation: Check sales amount must match sum of individual checks entered
 
 ### Backend Architecture
@@ -39,8 +40,9 @@ Preferred communication style: Simple, everyday language.
 
 **API Design**: RESTful API architecture with the following endpoints:
 - `/api/auth/*` - Authentication and user management
-- `/api/settings` - System configuration (starting cash, tolerance, approval requirements)
+- `/api/settings` - System configuration (starting cash, tolerance, approval requirements, Google Sheets ID)
 - `/api/reconciliations` - Create and retrieve reconciliation records
+- `/api/reconciliations/:id/submit` - Submit reconciliation to Google Sheets (POST)
 - `/api/reports/*` - Generate PDF and Excel reports
 
 **Authentication**: OpenID Connect (OIDC) integration with Replit authentication service using Passport.js strategy. Session-based authentication with PostgreSQL session store (connect-pg-simple). Sessions configured with 7-day TTL and secure HTTP-only cookies.
@@ -48,9 +50,15 @@ Preferred communication style: Simple, everyday language.
 **Database ORM**: Drizzle ORM with Neon serverless PostgreSQL driver. Schema-first approach with TypeScript type generation. Migrations managed via drizzle-kit.
 
 **Report Generation**: 
-- PDF reports using jsPDF library
+- PDF reports using jsPDF library (named import for version 3.x compatibility)
 - Excel exports using XLSX library
 - Both formats include detailed cash breakdowns, denomination counts, and reconciliation metadata
+
+**Google Sheets Integration**: 
+- Uses google-spreadsheet package with service account authentication
+- Submits reconciliation data to configured Google Sheet
+- Prevents duplicate submissions via isSubmitted flag
+- Edit prevention: Users cannot navigate back or modify data after final submission
 
 **Middleware**: Express middleware for JSON parsing, URL encoding, request logging with response time tracking, and error handling with appropriate status codes.
 
@@ -69,17 +77,19 @@ Preferred communication style: Simple, everyday language.
    - Indexed on expiration for efficient cleanup
 
 3. **settings** table: Global application configuration
-   - Fields: startingCash (decimal), tolerance (decimal), requireManagerApproval (boolean)
+   - Fields: startingCash (decimal), tolerance (decimal), requireManagerApproval (boolean), googleSheetId (text)
    - Single-row configuration pattern
 
 4. **reconciliations** table: Core business data storing cash reconciliation records
    - User identification: userId, userName, userEmail
-   - Sales data: cashSales, checkSales (replacing previous totalSales/cardSales), cashOut, startingCash (fetched from settings)
+   - Sales data: cashSales, checkSales, cashOut, startingCash (fetched from settings)
    - Check details: Support for up to 3 checks with check1Date, check1Number, check1Name, check1Amount (and check2/check3 equivalents)
    - Denomination counts: Individual fields for all coin and bill denominations ordered from smallest to largest (pennies, nickels, dimes, quarters, ones, fives, tens, twenties, fifties, hundreds)
    - Calculated fields: cashCount, expectedCash, difference, status
+   - Submission tracking: isSubmitted (boolean), submittedAt (timestamp)
    - Metadata: notes, createdAt timestamp
    - Status values: 'matched', 'within_tolerance', 'discrepancy', 'requires_approval'
+   - Discrepancy calculation: expectedDeposit = startingCash + cashSales + checkSales - cashOut; actualDeposit = cashCount + totalChecks; difference = actualDeposit - expectedDeposit
 
 **Data Validation**: Zod schemas (drizzle-zod integration) ensure type safety and validation at database boundary. Decimal precision set to 10 digits with 2 decimal places for all monetary values.
 
@@ -109,9 +119,10 @@ Preferred communication style: Simple, everyday language.
 **Third-Party Services**:
 1. **Replit Authentication (OIDC)**: Primary authentication provider requiring REPL_ID, ISSUER_URL, and SESSION_SECRET environment variables
 2. **Neon PostgreSQL**: Serverless database requiring DATABASE_URL environment variable
+3. **Google Sheets API**: Cloud data submission using service account authentication (requires credentials JSON and sheet ID configuration)
 
 **Key NPM Packages**:
-- **UI Components**: @radix-ui/* (accordion, dialog, dropdown, popover, toast, etc.)
+- **UI Components**: @radix-ui/* (accordion, dialog, dropdown, popover, toast, alert, etc.)
 - **State Management**: @tanstack/react-query
 - **Database**: @neondatabase/serverless, drizzle-orm, drizzle-zod
 - **Authentication**: openid-client, passport, express-session
@@ -119,6 +130,7 @@ Preferred communication style: Simple, everyday language.
 - **Forms**: react-hook-form, zod
 - **Date Handling**: date-fns
 - **Reporting**: jspdf, xlsx
+- **Google Sheets**: google-spreadsheet, google-auth-library
 - **Development**: vite, typescript, @replit/vite-plugin-* (development tools)
 
 **Build & Deployment**:
