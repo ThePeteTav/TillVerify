@@ -1,18 +1,94 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, serial, timestamp, decimal, integer, boolean, jsonb, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+export const sessions = pgTable(
+  "sessions",
+  {
+    sid: varchar("sid").primaryKey(),
+    sess: jsonb("sess").notNull(),
+    expire: timestamp("expire").notNull(),
+  },
+  (table) => [index("IDX_session_expire").on(table.expire)],
+);
+
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
+  email: varchar("email").unique(),
+  firstName: varchar("first_name"),
+  lastName: varchar("last_name"),
+  profileImageUrl: varchar("profile_image_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
+export const settings = pgTable("settings", {
+  id: serial("id").primaryKey(),
+  startingCash: decimal("starting_cash", { precision: 10, scale: 2 }).notNull().default('200.00'),
+  tolerance: decimal("tolerance", { precision: 10, scale: 2 }).notNull().default('5.00'),
+  requireManagerApproval: boolean("require_manager_approval").notNull().default(true),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export type InsertUser = z.infer<typeof insertUserSchema>;
+export const reconciliations = pgTable("reconciliations", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  userName: text("user_name").notNull(),
+  userEmail: text("user_email").notNull(),
+  
+  totalSales: decimal("total_sales", { precision: 10, scale: 2 }).notNull(),
+  cashSales: decimal("cash_sales", { precision: 10, scale: 2 }).notNull(),
+  cardSales: decimal("card_sales", { precision: 10, scale: 2 }).notNull(),
+  cashOut: decimal("cash_out", { precision: 10, scale: 2 }).notNull(),
+  startingCash: decimal("starting_cash", { precision: 10, scale: 2 }).notNull(),
+  
+  hundreds: integer("hundreds").notNull().default(0),
+  fifties: integer("fifties").notNull().default(0),
+  twenties: integer("twenties").notNull().default(0),
+  tens: integer("tens").notNull().default(0),
+  fives: integer("fives").notNull().default(0),
+  ones: integer("ones").notNull().default(0),
+  quarters: integer("quarters").notNull().default(0),
+  dimes: integer("dimes").notNull().default(0),
+  nickels: integer("nickels").notNull().default(0),
+  pennies: integer("pennies").notNull().default(0),
+  
+  cashCount: decimal("cash_count", { precision: 10, scale: 2 }).notNull(),
+  expectedCash: decimal("expected_cash", { precision: 10, scale: 2 }).notNull(),
+  difference: decimal("difference", { precision: 10, scale: 2 }).notNull(),
+  
+  notes: text("notes"),
+  status: text("status").notNull().default('completed'),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertSettingsSchema = createInsertSchema(settings).omit({
+  id: true,
+  updatedAt: true,
+}).extend({
+  startingCash: z.preprocess((val) => String(val), z.string()),
+  tolerance: z.preprocess((val) => String(val), z.string()),
+});
+
+export const insertReconciliationSchema = createInsertSchema(reconciliations).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  totalSales: z.preprocess((val) => String(val), z.string()),
+  cashSales: z.preprocess((val) => String(val), z.string()),
+  cardSales: z.preprocess((val) => String(val), z.string()),
+  cashOut: z.preprocess((val) => String(val), z.string()),
+  startingCash: z.preprocess((val) => String(val), z.string()),
+  cashCount: z.preprocess((val) => String(val), z.string()),
+  expectedCash: z.preprocess((val) => String(val), z.string()),
+  difference: z.preprocess((val) => String(val), z.string()),
+});
+
+export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
+export type Settings = typeof settings.$inferSelect;
+export type InsertSettings = z.infer<typeof insertSettingsSchema>;
+export type Reconciliation = typeof reconciliations.$inferSelect;
+export type InsertReconciliation = z.infer<typeof insertReconciliationSchema>;
