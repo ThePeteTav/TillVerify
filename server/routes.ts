@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertReconciliationSchema, insertSettingsSchema } from "@shared/schema";
 import { setupAuth, isAuthenticated } from "./replitAuth";
+import { generateReconciliationPDF, generateReconciliationExcel } from "./reportGenerator";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   await setupAuth(app);
@@ -43,8 +44,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = user.claims.sub;
       const dbUser = await storage.getUser(userId);
       
+      const expectedCash = parseFloat(req.body.startingCash) + parseFloat(req.body.cashSales) - parseFloat(req.body.cashOut);
+      const difference = parseFloat(req.body.cashCount) - expectedCash;
+      
       const validated = insertReconciliationSchema.parse({
-        ...req.body,
+        totalSales: req.body.totalSales,
+        cashSales: req.body.cashSales,
+        cardSales: req.body.cardSales,
+        cashOut: req.body.cashOut,
+        startingCash: req.body.startingCash,
+        hundreds: req.body.hundreds,
+        fifties: req.body.fifties,
+        twenties: req.body.twenties,
+        tens: req.body.tens,
+        fives: req.body.fives,
+        ones: req.body.ones,
+        quarters: req.body.quarters,
+        dimes: req.body.dimes,
+        nickels: req.body.nickels,
+        pennies: req.body.pennies,
+        cashCount: req.body.cashCount,
+        expectedCash: expectedCash,
+        difference: difference,
+        notes: req.body.notes,
+        status: req.body.status || 'completed',
         userId: userId,
         userName: dbUser?.firstName || dbUser?.email || 'Employee',
         userEmail: dbUser?.email || 'unknown',
@@ -67,13 +90,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/reconciliations/:id", isAuthenticated, async (req, res) => {
+  app.get("/api/reconciliations/:id", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
+      const userId = req.user.claims.sub;
       const reconciliation = await storage.getReconciliation(id);
       
       if (!reconciliation) {
         return res.status(404).json({ error: "Reconciliation not found" });
+      }
+      
+      if (reconciliation.userId !== userId) {
+        return res.status(403).json({ error: "Forbidden: You can only access your own reconciliations" });
       }
       
       res.json(reconciliation);
@@ -86,6 +114,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const reconciliations = await storage.getReconciliationsByUser(req.params.userId);
       res.json(reconciliations);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/reconciliations/:id/pdf", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const userId = req.user.claims.sub;
+      const reconciliation = await storage.getReconciliation(id);
+      
+      if (!reconciliation) {
+        return res.status(404).json({ error: "Reconciliation not found" });
+      }
+      
+      if (reconciliation.userId !== userId) {
+        return res.status(403).json({ error: "Forbidden: You can only access your own reconciliations" });
+      }
+      
+      const pdfBuffer = generateReconciliationPDF(reconciliation);
+      
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename=reconciliation-${id}.pdf`);
+      res.send(pdfBuffer);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/reconciliations/export/excel", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const reconciliations = await storage.getReconciliationsByUser(userId);
+      
+      const excelBuffer = generateReconciliationExcel(reconciliations);
+      
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=my-reconciliations.xlsx`);
+      res.send(excelBuffer);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

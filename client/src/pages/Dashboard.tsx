@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,11 +16,34 @@ type Step = 'sales' | 'counting' | 'results';
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState<Step>('sales');
   const [salesData, setSalesData] = useState<SalesData | null>(null);
   const [denominationCounts, setDenominationCounts] = useState<DenominationCounts | null>(null);
   const [cashCount, setCashCount] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
+  const [reconciliationId, setReconciliationId] = useState<number | null>(null);
+
+  const createReconciliationMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest('POST', '/api/reconciliations', data);
+      return await res.json();
+    },
+    onSuccess: (data: any) => {
+      setReconciliationId(data.id);
+      setCurrentStep('results');
+      toast({
+        title: "Success",
+        description: "Reconciliation completed successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleLogout = () => {
     window.location.href = '/api/logout';
@@ -25,29 +51,41 @@ export default function Dashboard() {
 
   const handleSalesSubmit = () => {
     if (!salesData) return;
-    console.log('Sales data submitted:', salesData);
     setCurrentStep('counting');
   };
 
   const handleCashCountSubmit = () => {
-    if (!denominationCounts) return;
-    console.log('Cash count submitted:', denominationCounts, cashCount);
-    setCurrentStep('results');
+    if (!denominationCounts || !salesData) return;
+    
+    createReconciliationMutation.mutate({
+      totalSales: salesData.totalSales,
+      cashSales: salesData.cashSales,
+      cardSales: salesData.cardSales,
+      cashOut: salesData.cashOut,
+      startingCash: salesData.startingCash,
+      hundreds: denominationCounts.hundreds,
+      fifties: denominationCounts.fifties,
+      twenties: denominationCounts.twenties,
+      tens: denominationCounts.tens,
+      fives: denominationCounts.fives,
+      ones: denominationCounts.ones,
+      quarters: denominationCounts.quarters,
+      dimes: denominationCounts.dimes,
+      nickels: denominationCounts.nickels,
+      pennies: denominationCounts.pennies,
+      cashCount: cashCount,
+      notes: salesData.notes,
+    });
   };
 
   const handleGeneratePDF = () => {
-    setIsLoading(true);
-    // Simulate PDF generation
-    setTimeout(() => {
-      console.log('PDF generated');
-      setIsLoading(false);
-      // In real implementation, would use jspdf library
-    }, 2000);
+    if (reconciliationId) {
+      window.open(`/api/reconciliations/${reconciliationId}/pdf`, '_blank');
+    }
   };
 
   const handleExportExcel = () => {
-    console.log('Excel export initiated');
-    // In real implementation, would use xlsx library
+    window.open('/api/reconciliations/export/excel', '_blank');
   };
 
   const resetReconciliation = () => {
@@ -55,6 +93,7 @@ export default function Dashboard() {
     setSalesData(null);
     setDenominationCounts(null);
     setCashCount(0);
+    setReconciliationId(null);
   };
 
   const getStepTitle = () => {
@@ -172,7 +211,7 @@ export default function Dashboard() {
             <SalesEntryForm
               onSalesDataChange={setSalesData}
               onSubmit={handleSalesSubmit}
-              isLoading={isLoading}
+              isLoading={false}
             />
           </div>
         )}
@@ -185,7 +224,7 @@ export default function Dashboard() {
                 setCashCount(total);
               }}
               onSubmit={handleCashCountSubmit}
-              isLoading={isLoading}
+              isLoading={createReconciliationMutation.isPending}
             />
             
             {salesData && (
@@ -214,7 +253,7 @@ export default function Dashboard() {
               denominationCounts={denominationCounts}
               onGeneratePDF={handleGeneratePDF}
               onExportExcel={handleExportExcel}
-              isGeneratingReport={isLoading}
+              isGeneratingReport={false}
             />
             
             <div className="flex justify-center mt-8">
