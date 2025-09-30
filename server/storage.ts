@@ -31,6 +31,7 @@ export class MemStorage implements IStorage {
       tolerance: '5.00',
       requireManagerApproval: true,
       googleSheetId: null,
+      companyLogo: null,
       updatedAt: new Date(),
     };
   }
@@ -62,6 +63,7 @@ export class MemStorage implements IStorage {
         tolerance: '5.00',
         requireManagerApproval: true,
         googleSheetId: null,
+        companyLogo: null,
         updatedAt: new Date(),
       };
     }
@@ -76,6 +78,7 @@ export class MemStorage implements IStorage {
       tolerance: insertSettings.tolerance || currentSettings.tolerance,
       requireManagerApproval: insertSettings.requireManagerApproval !== undefined ? insertSettings.requireManagerApproval : currentSettings.requireManagerApproval,
       googleSheetId: insertSettings.googleSheetId !== undefined ? insertSettings.googleSheetId || null : currentSettings.googleSheetId,
+      companyLogo: insertSettings.companyLogo !== undefined ? insertSettings.companyLogo || null : currentSettings.companyLogo,
       updatedAt: new Date(),
     };
     this.settings = updated;

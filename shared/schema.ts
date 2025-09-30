@@ -29,6 +29,7 @@ export const settings = pgTable("settings", {
   tolerance: decimal("tolerance", { precision: 10, scale: 2 }).notNull().default('5.00'),
   requireManagerApproval: boolean("require_manager_approval").notNull().default(true),
   googleSheetId: text("google_sheet_id"),
+  companyLogo: text("company_logo"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
@@ -88,6 +89,7 @@ export const insertSettingsSchema = createInsertSchema(settings).omit({
   startingCash: z.preprocess((val) => String(val), z.string()),
   tolerance: z.preprocess((val) => String(val), z.string()),
   googleSheetId: z.string().optional(),
+  companyLogo: z.string().optional(),
 });
 
 export const insertReconciliationSchema = createInsertSchema(reconciliations).omit({

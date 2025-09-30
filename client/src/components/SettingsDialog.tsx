@@ -22,6 +22,7 @@ interface SettingsData {
   tolerance: string;
   requireManagerApproval: boolean;
   googleSheetId: string;
+  companyLogo?: string;
 }
 
 interface SettingsDialogProps {
@@ -43,6 +44,7 @@ export default function SettingsDialog({ trigger }: SettingsDialogProps) {
     tolerance: settings?.tolerance || '5.00',
     requireManagerApproval: settings?.requireManagerApproval ?? true,
     googleSheetId: settings?.googleSheetId || '',
+    companyLogo: settings?.companyLogo || '',
   });
 
   useEffect(() => {
@@ -52,9 +54,34 @@ export default function SettingsDialog({ trigger }: SettingsDialogProps) {
         tolerance: settings.tolerance,
         requireManagerApproval: settings.requireManagerApproval,
         googleSheetId: settings.googleSheetId || '',
+        companyLogo: settings.companyLogo || '',
       });
     }
   }, [open, settings]);
+
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) { // 2MB limit
+        toast({
+          title: "File too large",
+          description: "Please select an image under 2MB",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData({ ...formData, companyLogo: reader.result as string });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeLogo = () => {
+    setFormData({ ...formData, companyLogo: '' });
+  };
 
   const updateSettingsMutation = useMutation({
     mutationFn: async (data: SettingsData) => {
@@ -164,6 +191,38 @@ export default function SettingsDialog({ trigger }: SettingsDialogProps) {
               />
               <p className="text-sm text-muted-foreground">
                 The ID from your Google Sheet URL (the part after /d/)
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="companyLogo">Company Logo (Optional)</Label>
+              {formData.companyLogo ? (
+                <div className="space-y-2">
+                  <img 
+                    src={formData.companyLogo} 
+                    alt="Company Logo" 
+                    className="max-h-24 object-contain border rounded p-2"
+                  />
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm"
+                    onClick={removeLogo}
+                    data-testid="button-remove-logo"
+                  >
+                    Remove Logo
+                  </Button>
+                </div>
+              ) : (
+                <Input
+                  id="companyLogo"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleLogoChange}
+                  data-testid="input-setting-company-logo"
+                />
+              )}
+              <p className="text-sm text-muted-foreground">
+                Upload a company logo to appear on PDF reports (max 2MB)
               </p>
             </div>
           </div>
