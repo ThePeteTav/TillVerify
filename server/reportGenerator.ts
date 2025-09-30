@@ -1,141 +1,147 @@
 import { jsPDF } from 'jspdf';
 import * as XLSX from 'xlsx';
-import type { Reconciliation } from '@shared/schema';
+import type { Reconciliation, Settings } from '@shared/schema';
 
-export function generateReconciliationPDF(reconciliation: Reconciliation): Buffer {
+export function generateReconciliationPDF(reconciliation: Reconciliation, settings?: Settings): Buffer {
   const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const leftCol = 15;
+  const rightCol = 110;
+  let yPos = 20;
   
-  doc.setFontSize(20);
-  doc.text('Cash Reconciliation Report', 105, 20, { align: 'center' });
+  if (settings?.companyLogo) {
+    try {
+      const imageFormat = settings.companyLogo.includes('data:image/jpeg') || settings.companyLogo.includes('data:image/jpg') ? 'JPEG' : 'PNG';
+      doc.addImage(settings.companyLogo, imageFormat, leftCol, yPos, 40, 20);
+      yPos += 25;
+    } catch (error) {
+      console.error('Error adding logo to PDF:', error);
+    }
+  }
+  
+  doc.setFontSize(18);
+  doc.text('Cash Reconciliation Report', pageWidth / 2, yPos, { align: 'center' });
+  yPos += 10;
+  
+  doc.setFontSize(9);
+  doc.text(`Reconciliation ID: ${reconciliation.id}`, pageWidth / 2, yPos, { align: 'center' });
+  yPos += 5;
+  doc.text(`Date: ${new Date(reconciliation.createdAt).toLocaleString()}`, pageWidth / 2, yPos, { align: 'center' });
+  yPos += 5;
+  doc.text(`Employee: ${reconciliation.userName}`, pageWidth / 2, yPos, { align: 'center' });
+  yPos += 5;
+  doc.text(`Status: ${reconciliation.status.toUpperCase()}`, pageWidth / 2, yPos, { align: 'center' });
+  yPos += 10;
   
   doc.setFontSize(10);
-  doc.text(`Reconciliation ID: ${reconciliation.id}`, 20, 30);
-  doc.text(`Date: ${new Date(reconciliation.createdAt).toLocaleString()}`, 20, 37);
-  doc.text(`Employee: ${reconciliation.userName}`, 20, 44);
-  doc.text(`Email: ${reconciliation.userEmail}`, 20, 51);
-  doc.text(`Status: ${reconciliation.status}`, 20, 58);
+  doc.text(`Cash Sales: $${parseFloat(reconciliation.cashSales).toFixed(2)}`, leftCol + 2, yPos);
+  doc.text(`Check Sales: $${parseFloat(reconciliation.checkSales).toFixed(2)}`, leftCol + 2, yPos + 5);
+  doc.text(`Cash Out: $${parseFloat(reconciliation.cashOut).toFixed(2)}`, leftCol + 2, yPos + 10);
+  doc.text(`Starting Cash: $${parseFloat(reconciliation.startingCash).toFixed(2)}`, leftCol + 2, yPos + 15);
   
-  doc.setFontSize(14);
-  doc.text('Sales Summary', 20, 70);
-  doc.setFontSize(10);
-  doc.text(`Cash Sales: $${parseFloat(reconciliation.cashSales).toFixed(2)}`, 30, 80);
-  doc.text(`Check Sales: $${parseFloat(reconciliation.checkSales).toFixed(2)}`, 30, 87);
-  doc.text(`Cash Out: $${parseFloat(reconciliation.cashOut).toFixed(2)}`, 30, 94);
-  doc.text(`Starting Cash: $${parseFloat(reconciliation.startingCash).toFixed(2)}`, 30, 101);
-  
-  doc.setFontSize(14);
-  doc.text('Cash Count Breakdown', 20, 115);
-  doc.setFontSize(10);
   const denominations = [
-    { label: 'Pennies', count: reconciliation.pennies, value: 0.01 },
-    { label: 'Nickels', count: reconciliation.nickels, value: 0.05 },
-    { label: 'Dimes', count: reconciliation.dimes, value: 0.10 },
+    { label: '$100', count: reconciliation.hundreds, value: 100 },
+    { label: '$50', count: reconciliation.fifties, value: 50 },
+    { label: '$20', count: reconciliation.twenties, value: 20 },
+    { label: '$10', count: reconciliation.tens, value: 10 },
+    { label: '$5', count: reconciliation.fives, value: 5 },
+    { label: '$1', count: reconciliation.ones, value: 1 },
     { label: 'Quarters', count: reconciliation.quarters, value: 0.25 },
-    { label: '$1 Bills', count: reconciliation.ones, value: 1 },
-    { label: '$5 Bills', count: reconciliation.fives, value: 5 },
-    { label: '$10 Bills', count: reconciliation.tens, value: 10 },
-    { label: '$20 Bills', count: reconciliation.twenties, value: 20 },
-    { label: '$50 Bills', count: reconciliation.fifties, value: 50 },
-    { label: '$100 Bills', count: reconciliation.hundreds, value: 100 },
+    { label: 'Dimes', count: reconciliation.dimes, value: 0.10 },
+    { label: 'Nickels', count: reconciliation.nickels, value: 0.05 },
+    { label: 'Pennies', count: reconciliation.pennies, value: 0.01 },
   ];
   
-  let yPos = 125;
+  let rightYPos = yPos;
   denominations.forEach(denom => {
     if (denom.count > 0) {
       const total = denom.count * denom.value;
-      doc.text(`${denom.label}: ${denom.count} × $${denom.value.toFixed(2)} = $${total.toFixed(2)}`, 30, yPos);
-      yPos += 7;
+      doc.text(`${denom.label}: ${denom.count} × $${denom.value.toFixed(2)} = $${total.toFixed(2)}`, rightCol + 2, rightYPos);
+      rightYPos += 5;
     }
   });
   
-  yPos += 5;
-  doc.setFontSize(14);
-  doc.text('Checks', 20, yPos);
-  yPos += 10;
-  doc.setFontSize(10);
+  yPos = Math.max(yPos + 25, rightYPos + 5);
+  
+  doc.setFontSize(12);
+  doc.text('Checks', leftCol, yPos);
+  yPos += 7;
+  doc.setFontSize(9);
   
   if (reconciliation.check1Amount && parseFloat(reconciliation.check1Amount) > 0) {
-    doc.text(`Check #${reconciliation.check1Number || 'N/A'} - ${reconciliation.check1Name || 'N/A'} - ${reconciliation.check1Date || 'N/A'}: $${parseFloat(reconciliation.check1Amount).toFixed(2)}`, 30, yPos);
-    yPos += 7;
+    doc.text(`#${reconciliation.check1Number || 'N/A'}: ${reconciliation.check1Name || 'N/A'} ($${parseFloat(reconciliation.check1Amount).toFixed(2)}) ${reconciliation.check1Date || ''}`, leftCol + 2, yPos);
+    yPos += 5;
   }
   if (reconciliation.check2Amount && parseFloat(reconciliation.check2Amount) > 0) {
-    doc.text(`Check #${reconciliation.check2Number || 'N/A'} - ${reconciliation.check2Name || 'N/A'} - ${reconciliation.check2Date || 'N/A'}: $${parseFloat(reconciliation.check2Amount).toFixed(2)}`, 30, yPos);
-    yPos += 7;
+    doc.text(`#${reconciliation.check2Number || 'N/A'}: ${reconciliation.check2Name || 'N/A'} ($${parseFloat(reconciliation.check2Amount).toFixed(2)}) ${reconciliation.check2Date || ''}`, leftCol + 2, yPos);
+    yPos += 5;
   }
   if (reconciliation.check3Amount && parseFloat(reconciliation.check3Amount) > 0) {
-    doc.text(`Check #${reconciliation.check3Number || 'N/A'} - ${reconciliation.check3Name || 'N/A'} - ${reconciliation.check3Date || 'N/A'}: $${parseFloat(reconciliation.check3Amount).toFixed(2)}`, 30, yPos);
-    yPos += 7;
+    doc.text(`#${reconciliation.check3Number || 'N/A'}: ${reconciliation.check3Name || 'N/A'} ($${parseFloat(reconciliation.check3Amount).toFixed(2)}) ${reconciliation.check3Date || ''}`, leftCol + 2, yPos);
+    yPos += 5;
   }
   
-  yPos += 5;
-  doc.setFontSize(14);
-  doc.text('Reconciliation Results', 20, yPos);
-  yPos += 10;
-  doc.setFontSize(10);
+  yPos += 8;
+  doc.setFontSize(12);
+  doc.text('Reconciliation Results', leftCol, yPos);
+  doc.text('Deposit Summary', rightCol, yPos);
+  yPos += 7;
+  doc.setFontSize(9);
   
   const expectedCash = parseFloat(reconciliation.cashSales);
   const actualCash = parseFloat(reconciliation.cashCount) - parseFloat(reconciliation.startingCash);
   const cashDiff = actualCash - expectedCash;
-  
-  doc.text(`Expected Cash: $${expectedCash.toFixed(2)}`, 30, yPos);
-  yPos += 7;
-  doc.text(`Actual Cash Count: $${actualCash.toFixed(2)}`, 30, yPos);
-  yPos += 7;
-  doc.text(`Cash Difference: ${cashDiff >= 0 ? '+' : ''}$${cashDiff.toFixed(2)}`, 30, yPos);
-  yPos += 10;
-  
   const expectedChecks = parseFloat(reconciliation.checkSales);
   const actualChecks = 
     (reconciliation.check1Amount ? parseFloat(reconciliation.check1Amount) : 0) +
     (reconciliation.check2Amount ? parseFloat(reconciliation.check2Amount) : 0) +
     (reconciliation.check3Amount ? parseFloat(reconciliation.check3Amount) : 0);
   const checkDiff = actualChecks - expectedChecks;
-  
-  doc.text(`Expected Checks: $${expectedChecks.toFixed(2)}`, 30, yPos);
-  yPos += 7;
-  doc.text(`Actual Checks: $${actualChecks.toFixed(2)}`, 30, yPos);
-  yPos += 7;
-  doc.text(`Check Difference: ${checkDiff >= 0 ? '+' : ''}$${checkDiff.toFixed(2)}`, 30, yPos);
-  yPos += 10;
-  
-  doc.setFontSize(12);
-  doc.text('Deposit', 30, yPos);
-  yPos += 8;
-  doc.setFontSize(10);
-  doc.text(`Cash: $${actualCash.toFixed(2)}`, 35, yPos);
-  yPos += 7;
-  doc.text(`Checks: $${actualChecks.toFixed(2)}`, 35, yPos);
-  yPos += 7;
   const totalDeposit = actualCash + actualChecks;
+  
+  doc.text(`Expected Cash: $${expectedCash.toFixed(2)}`, leftCol + 2, yPos);
+  doc.text(`Cash: $${actualCash.toFixed(2)}`, rightCol + 2, yPos);
+  yPos += 5;
+  doc.text(`Actual Cash: $${actualCash.toFixed(2)}`, leftCol + 2, yPos);
+  doc.text(`Checks: $${actualChecks.toFixed(2)}`, rightCol + 2, yPos);
+  yPos += 5;
+  doc.text(`Cash Diff: ${cashDiff >= 0 ? '+' : ''}$${cashDiff.toFixed(2)}`, leftCol + 2, yPos);
   doc.setFontSize(11);
-  doc.text(`Total Deposit: $${totalDeposit.toFixed(2)}`, 35, yPos);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Total: $${totalDeposit.toFixed(2)}`, rightCol + 2, yPos);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  yPos += 8;
+  
+  doc.text(`Expected Checks: $${expectedChecks.toFixed(2)}`, leftCol + 2, yPos);
+  yPos += 5;
+  doc.text(`Actual Checks: $${actualChecks.toFixed(2)}`, leftCol + 2, yPos);
+  yPos += 5;
+  doc.text(`Check Diff: ${checkDiff >= 0 ? '+' : ''}$${checkDiff.toFixed(2)}`, leftCol + 2, yPos);
   yPos += 10;
   
-  doc.setFontSize(10);
   const overallDiff = parseFloat(reconciliation.difference);
-  
+  doc.setFontSize(10);
   if (Math.abs(overallDiff) < 0.01) {
     doc.setTextColor(0, 128, 0);
-    doc.text(`Overall Status: Perfect Match`, 30, yPos);
+    doc.text(`Status: Perfect Match`, leftCol, yPos);
   } else if (Math.abs(overallDiff) <= 5.00) {
     doc.setTextColor(255, 165, 0);
-    doc.text(`Overall Status: Within Tolerance (${overallDiff >= 0 ? '+' : ''}$${overallDiff.toFixed(2)})`, 30, yPos);
+    doc.text(`Status: Within Tolerance (${overallDiff >= 0 ? '+' : ''}$${overallDiff.toFixed(2)})`, leftCol, yPos);
   } else {
     doc.setTextColor(255, 0, 0);
-    doc.text(`Overall Status: Discrepancy (${overallDiff >= 0 ? '+' : ''}$${overallDiff.toFixed(2)})`, 30, yPos);
+    doc.text(`Status: Discrepancy (${overallDiff >= 0 ? '+' : ''}$${overallDiff.toFixed(2)})`, leftCol, yPos);
   }
-  
   doc.setTextColor(0, 0, 0);
-  yPos += 7;
   
   if (reconciliation.notes) {
-    yPos += 15;
-    doc.setFontSize(14);
-    doc.text('Notes', 20, yPos);
     yPos += 10;
-    doc.setFontSize(10);
-    const splitNotes = doc.splitTextToSize(reconciliation.notes, 170);
-    doc.text(splitNotes, 30, yPos);
+    doc.setFontSize(11);
+    doc.text('Notes:', leftCol, yPos);
+    yPos += 6;
+    doc.setFontSize(9);
+    const splitNotes = doc.splitTextToSize(reconciliation.notes, 180);
+    doc.text(splitNotes, leftCol, yPos);
   }
   
   return Buffer.from(doc.output('arraybuffer'));

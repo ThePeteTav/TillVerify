@@ -148,7 +148,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Forbidden: You can only access your own reconciliations" });
       }
       
-      const pdfBuffer = generateReconciliationPDF(reconciliation);
+      const settings = await storage.getSettings();
+      const pdfBuffer = generateReconciliationPDF(reconciliation, settings);
       
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename=reconciliation-${id}.pdf`);
