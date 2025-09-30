@@ -34,8 +34,9 @@ export default function ReconciliationResults({
   isGeneratingReport,
   isSubmitting = false
 }: ReconciliationResultsProps) {
-  const expectedDeposit = salesData.startingCash + salesData.cashSales + salesData.checkSales - salesData.cashOut;
-  const actualDeposit = cashCount + totalChecks;
+  const cashForDeposit = cashCount - salesData.startingCash;
+  const expectedDeposit = salesData.cashSales + salesData.checkSales - salesData.cashOut;
+  const actualDeposit = cashForDeposit + totalChecks;
   const difference = actualDeposit - expectedDeposit;
   const isMatching = Math.abs(difference) < 0.01; // Account for floating point precision
   const tolerance = 5.00; // $5 tolerance - ideally from settings
@@ -90,10 +91,6 @@ export default function ReconciliationResults({
           <CardContent>
             <div className="space-y-2">
               <div className="flex justify-between">
-                <span>Starting Cash:</span>
-                <span data-testid="text-starting-cash">${salesData.startingCash.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
                 <span>Cash Sales:</span>
                 <span data-testid="text-cash-sales">+${salesData.cashSales.toFixed(2)}</span>
               </div>
@@ -121,12 +118,12 @@ export default function ReconciliationResults({
           <CardContent>
             <div className="space-y-2">
               <div className="flex justify-between">
-                <span>Cash Count:</span>
-                <span>${cashCount.toFixed(2)}</span>
+                <span>Cash for Deposit:</span>
+                <span data-testid="text-actual-cash">${cashForDeposit.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
                 <span>Total Checks:</span>
-                <span>${totalChecks.toFixed(2)}</span>
+                <span data-testid="text-actual-checks">${totalChecks.toFixed(2)}</span>
               </div>
               <hr />
               <div className="text-2xl font-bold text-primary" data-testid="text-actual-deposit">
@@ -157,7 +154,7 @@ export default function ReconciliationResults({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
             <div>
               <div className="text-sm text-muted-foreground">Total Cash</div>
-              <div className="text-lg font-semibold" data-testid="text-summary-total-cash">${cashCount.toFixed(2)}</div>
+              <div className="text-lg font-semibold" data-testid="text-summary-total-cash">${cashForDeposit.toFixed(2)}</div>
             </div>
             <div>
               <div className="text-sm text-muted-foreground">Total Checks</div>
@@ -165,7 +162,7 @@ export default function ReconciliationResults({
             </div>
             <div className="border-l pl-4">
               <div className="text-sm text-muted-foreground">Total Deposit</div>
-              <div className="text-2xl font-bold text-primary" data-testid="text-summary-total-deposit">${(cashCount + totalChecks).toFixed(2)}</div>
+              <div className="text-2xl font-bold text-primary" data-testid="text-summary-total-deposit">${actualDeposit.toFixed(2)}</div>
             </div>
           </div>
         </CardContent>

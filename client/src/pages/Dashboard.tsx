@@ -314,15 +314,27 @@ export default function Dashboard() {
             {salesData && (
               <Card className="mt-6">
                 <CardHeader>
-                  <CardTitle>Reference: Expected Cash</CardTitle>
+                  <CardTitle>Totals: Cash & Check</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-muted-foreground">
-                    ${(salesData.startingCash + salesData.cashSales - salesData.cashOut).toFixed(2)}
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Cash for Deposit:</span>
+                    <span className="font-semibold" data-testid="text-cash-for-deposit">
+                      ${(cashCount - salesData.startingCash).toFixed(2)}
+                    </span>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    Starting Cash + Cash Sales - Cash Out
-                  </p>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Total Checks:</span>
+                    <span className="font-semibold" data-testid="text-total-checks-summary">
+                      ${totalChecks.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="border-t pt-3 flex justify-between items-center">
+                    <span className="text-base font-semibold">Total Deposit:</span>
+                    <span className="text-2xl font-bold text-primary" data-testid="text-total-deposit-summary">
+                      ${(cashCount - salesData.startingCash + totalChecks).toFixed(2)}
+                    </span>
+                  </div>
                 </CardContent>
               </Card>
             )}
