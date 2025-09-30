@@ -73,27 +73,60 @@ export function generateReconciliationPDF(reconciliation: Reconciliation): Buffe
   yPos += 10;
   doc.setFontSize(10);
   
-  const expected = parseFloat(reconciliation.expectedCash);
-  const actual = parseFloat(reconciliation.cashCount);
-  const diff = parseFloat(reconciliation.difference);
+  const expectedCash = parseFloat(reconciliation.cashSales);
+  const actualCash = parseFloat(reconciliation.cashCount) - parseFloat(reconciliation.startingCash);
+  const cashDiff = actualCash - expectedCash;
   
-  doc.text(`Expected Cash: $${expected.toFixed(2)}`, 30, yPos);
+  doc.text(`Expected Cash: $${expectedCash.toFixed(2)}`, 30, yPos);
   yPos += 7;
-  doc.text(`Actual Cash Count: $${actual.toFixed(2)}`, 30, yPos);
+  doc.text(`Actual Cash Count: $${actualCash.toFixed(2)}`, 30, yPos);
   yPos += 7;
+  doc.text(`Cash Difference: ${cashDiff >= 0 ? '+' : ''}$${cashDiff.toFixed(2)}`, 30, yPos);
+  yPos += 10;
   
-  if (Math.abs(diff) < 0.01) {
+  const expectedChecks = parseFloat(reconciliation.checkSales);
+  const actualChecks = 
+    (reconciliation.check1Amount ? parseFloat(reconciliation.check1Amount) : 0) +
+    (reconciliation.check2Amount ? parseFloat(reconciliation.check2Amount) : 0) +
+    (reconciliation.check3Amount ? parseFloat(reconciliation.check3Amount) : 0);
+  const checkDiff = actualChecks - expectedChecks;
+  
+  doc.text(`Expected Checks: $${expectedChecks.toFixed(2)}`, 30, yPos);
+  yPos += 7;
+  doc.text(`Actual Checks: $${actualChecks.toFixed(2)}`, 30, yPos);
+  yPos += 7;
+  doc.text(`Check Difference: ${checkDiff >= 0 ? '+' : ''}$${checkDiff.toFixed(2)}`, 30, yPos);
+  yPos += 10;
+  
+  doc.setFontSize(12);
+  doc.text('Deposit', 30, yPos);
+  yPos += 8;
+  doc.setFontSize(10);
+  doc.text(`Cash: $${actualCash.toFixed(2)}`, 35, yPos);
+  yPos += 7;
+  doc.text(`Checks: $${actualChecks.toFixed(2)}`, 35, yPos);
+  yPos += 7;
+  const totalDeposit = actualCash + actualChecks;
+  doc.setFontSize(11);
+  doc.text(`Total Deposit: $${totalDeposit.toFixed(2)}`, 35, yPos);
+  yPos += 10;
+  
+  doc.setFontSize(10);
+  const overallDiff = parseFloat(reconciliation.difference);
+  
+  if (Math.abs(overallDiff) < 0.01) {
     doc.setTextColor(0, 128, 0);
-    doc.text(`Difference: $${diff.toFixed(2)} (Perfect Match)`, 30, yPos);
-  } else if (Math.abs(diff) <= 5.00) {
+    doc.text(`Overall Status: Perfect Match`, 30, yPos);
+  } else if (Math.abs(overallDiff) <= 5.00) {
     doc.setTextColor(255, 165, 0);
-    doc.text(`Difference: ${diff >= 0 ? '+' : ''}$${diff.toFixed(2)} (Within Tolerance)`, 30, yPos);
+    doc.text(`Overall Status: Within Tolerance (${overallDiff >= 0 ? '+' : ''}$${overallDiff.toFixed(2)})`, 30, yPos);
   } else {
     doc.setTextColor(255, 0, 0);
-    doc.text(`Difference: ${diff >= 0 ? '+' : ''}$${diff.toFixed(2)} (Discrepancy)`, 30, yPos);
+    doc.text(`Overall Status: Discrepancy (${overallDiff >= 0 ? '+' : ''}$${overallDiff.toFixed(2)})`, 30, yPos);
   }
   
   doc.setTextColor(0, 0, 0);
+  yPos += 7;
   
   if (reconciliation.notes) {
     yPos += 15;
