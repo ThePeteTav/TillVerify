@@ -142,21 +142,70 @@ export function generateReconciliationPDF(reconciliation: Reconciliation): Buffe
 }
 
 export function generateReconciliationExcel(reconciliations: Reconciliation[]): Buffer {
-  const data = reconciliations.map(r => ({
-    'ID': r.id,
-    'Date': r.createdAt.toISOString(),
-    'Employee': r.userName,
-    'Email': r.userEmail,
-    'Cash Sales': parseFloat(r.cashSales),
-    'Check Sales': parseFloat(r.checkSales),
-    'Cash Out': parseFloat(r.cashOut),
-    'Starting Cash': parseFloat(r.startingCash),
-    'Expected Cash': parseFloat(r.expectedCash),
-    'Actual Cash': parseFloat(r.cashCount),
-    'Difference': parseFloat(r.difference),
-    'Status': r.status,
-    'Notes': r.notes || '',
-  }));
+  const data = reconciliations.map(r => {
+    const actualCash = parseFloat(r.cashCount) - parseFloat(r.startingCash);
+    const actualChecks = 
+      (r.check1Amount ? parseFloat(r.check1Amount) : 0) +
+      (r.check2Amount ? parseFloat(r.check2Amount) : 0) +
+      (r.check3Amount ? parseFloat(r.check3Amount) : 0);
+    const totalDeposit = actualCash + actualChecks;
+    
+    return {
+      'ID': r.id,
+      'Date': r.createdAt.toISOString(),
+      'Employee': r.userName,
+      'Email': r.userEmail,
+      'Status': r.status,
+      '': '',
+      'SALES SUMMARY': '',
+      'Cash Sales': parseFloat(r.cashSales),
+      'Check Sales': parseFloat(r.checkSales),
+      'Cash Out': parseFloat(r.cashOut),
+      'Starting Cash': parseFloat(r.startingCash),
+      ' ': '',
+      'CASH DENOMINATIONS': '',
+      'Pennies': r.pennies,
+      'Nickels': r.nickels,
+      'Dimes': r.dimes,
+      'Quarters': r.quarters,
+      '$1 Bills': r.ones,
+      '$5 Bills': r.fives,
+      '$10 Bills': r.tens,
+      '$20 Bills': r.twenties,
+      '$50 Bills': r.fifties,
+      '$100 Bills': r.hundreds,
+      '  ': '',
+      'CHECK DETAILS': '',
+      'Check 1 Amount': r.check1Amount ? parseFloat(r.check1Amount) : 0,
+      'Check 1 Number': r.check1Number || '',
+      'Check 1 Name': r.check1Name || '',
+      'Check 1 Date': r.check1Date || '',
+      'Check 2 Amount': r.check2Amount ? parseFloat(r.check2Amount) : 0,
+      'Check 2 Number': r.check2Number || '',
+      'Check 2 Name': r.check2Name || '',
+      'Check 2 Date': r.check2Date || '',
+      'Check 3 Amount': r.check3Amount ? parseFloat(r.check3Amount) : 0,
+      'Check 3 Number': r.check3Number || '',
+      'Check 3 Name': r.check3Name || '',
+      'Check 3 Date': r.check3Date || '',
+      '   ': '',
+      'RECONCILIATION': '',
+      'Expected Cash': parseFloat(r.cashSales),
+      'Actual Cash': actualCash,
+      'Cash Difference': actualCash - parseFloat(r.cashSales),
+      'Expected Checks': parseFloat(r.checkSales),
+      'Actual Checks': actualChecks,
+      'Check Difference': actualChecks - parseFloat(r.checkSales),
+      '    ': '',
+      'DEPOSIT': '',
+      'Deposit Cash': actualCash,
+      'Deposit Checks': actualChecks,
+      'Total Deposit': totalDeposit,
+      'Overall Difference': parseFloat(r.difference),
+      '     ': '',
+      'Notes': r.notes || '',
+    };
+  });
   
   const worksheet = XLSX.utils.json_to_sheet(data);
   const workbook = XLSX.utils.book_new();

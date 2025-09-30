@@ -31,40 +31,66 @@ export async function submitToGoogleSheets(
     throw new Error('No sheets found in the spreadsheet');
   }
 
-  const totalChecks = 
+  const actualCash = parseFloat(reconciliation.cashCount) - parseFloat(reconciliation.startingCash);
+  const actualChecks = 
     parseFloat(reconciliation.check1Amount || '0') + 
     parseFloat(reconciliation.check2Amount || '0') + 
     parseFloat(reconciliation.check3Amount || '0');
+  const totalDeposit = actualCash + actualChecks;
   
-  const totalDeposit = parseFloat(reconciliation.cashCount) + totalChecks;
-
-  const checkDetails = [];
-  if (reconciliation.check1Amount && parseFloat(reconciliation.check1Amount) > 0) {
-    checkDetails.push(`Check #${reconciliation.check1Number || 'N/A'}: ${reconciliation.check1Name || 'N/A'} - $${parseFloat(reconciliation.check1Amount).toFixed(2)} (${reconciliation.check1Date || 'N/A'})`);
-  }
-  if (reconciliation.check2Amount && parseFloat(reconciliation.check2Amount) > 0) {
-    checkDetails.push(`Check #${reconciliation.check2Number || 'N/A'}: ${reconciliation.check2Name || 'N/A'} - $${parseFloat(reconciliation.check2Amount).toFixed(2)} (${reconciliation.check2Date || 'N/A'})`);
-  }
-  if (reconciliation.check3Amount && parseFloat(reconciliation.check3Amount) > 0) {
-    checkDetails.push(`Check #${reconciliation.check3Number || 'N/A'}: ${reconciliation.check3Name || 'N/A'} - $${parseFloat(reconciliation.check3Amount).toFixed(2)} (${reconciliation.check3Date || 'N/A'})`);
-  }
+  const expectedCash = parseFloat(reconciliation.cashSales);
+  const expectedChecks = parseFloat(reconciliation.checkSales);
+  const cashDiff = actualCash - expectedCash;
+  const checkDiff = actualChecks - expectedChecks;
 
   await sheet.addRow({
     'Reconciliation ID': reconciliation.id,
     'Date': new Date(reconciliation.createdAt).toLocaleString(),
     'Employee': reconciliation.userName,
     'Email': reconciliation.userEmail,
-    'Starting Cash': `$${parseFloat(reconciliation.startingCash).toFixed(2)}`,
+    'Status': reconciliation.status,
+    '': '',
     'Cash Sales': `$${parseFloat(reconciliation.cashSales).toFixed(2)}`,
     'Check Sales': `$${parseFloat(reconciliation.checkSales).toFixed(2)}`,
     'Cash Out': `$${parseFloat(reconciliation.cashOut).toFixed(2)}`,
-    'Cash Count': `$${parseFloat(reconciliation.cashCount).toFixed(2)}`,
-    'Total Checks': `$${totalChecks.toFixed(2)}`,
+    'Starting Cash': `$${parseFloat(reconciliation.startingCash).toFixed(2)}`,
+    ' ': '',
+    'Pennies': reconciliation.pennies,
+    'Nickels': reconciliation.nickels,
+    'Dimes': reconciliation.dimes,
+    'Quarters': reconciliation.quarters,
+    '$1 Bills': reconciliation.ones,
+    '$5 Bills': reconciliation.fives,
+    '$10 Bills': reconciliation.tens,
+    '$20 Bills': reconciliation.twenties,
+    '$50 Bills': reconciliation.fifties,
+    '$100 Bills': reconciliation.hundreds,
+    '  ': '',
+    'Check 1 Amount': reconciliation.check1Amount ? `$${parseFloat(reconciliation.check1Amount).toFixed(2)}` : '$0.00',
+    'Check 1 Number': reconciliation.check1Number || '',
+    'Check 1 Name': reconciliation.check1Name || '',
+    'Check 1 Date': reconciliation.check1Date || '',
+    'Check 2 Amount': reconciliation.check2Amount ? `$${parseFloat(reconciliation.check2Amount).toFixed(2)}` : '$0.00',
+    'Check 2 Number': reconciliation.check2Number || '',
+    'Check 2 Name': reconciliation.check2Name || '',
+    'Check 2 Date': reconciliation.check2Date || '',
+    'Check 3 Amount': reconciliation.check3Amount ? `$${parseFloat(reconciliation.check3Amount).toFixed(2)}` : '$0.00',
+    'Check 3 Number': reconciliation.check3Number || '',
+    'Check 3 Name': reconciliation.check3Name || '',
+    'Check 3 Date': reconciliation.check3Date || '',
+    '   ': '',
+    'Expected Cash': `$${expectedCash.toFixed(2)}`,
+    'Actual Cash': `$${actualCash.toFixed(2)}`,
+    'Cash Difference': `$${cashDiff.toFixed(2)}`,
+    'Expected Checks': `$${expectedChecks.toFixed(2)}`,
+    'Actual Checks': `$${actualChecks.toFixed(2)}`,
+    'Check Difference': `$${checkDiff.toFixed(2)}`,
+    '    ': '',
+    'Deposit Cash': `$${actualCash.toFixed(2)}`,
+    'Deposit Checks': `$${actualChecks.toFixed(2)}`,
     'Total Deposit': `$${totalDeposit.toFixed(2)}`,
-    'Expected Deposit': `$${(parseFloat(reconciliation.startingCash) + parseFloat(reconciliation.cashSales) + parseFloat(reconciliation.checkSales) - parseFloat(reconciliation.cashOut)).toFixed(2)}`,
-    'Difference': `$${parseFloat(reconciliation.difference).toFixed(2)}`,
-    'Status': reconciliation.status,
-    'Check Details': checkDetails.join('; '),
+    'Overall Difference': `$${parseFloat(reconciliation.difference).toFixed(2)}`,
+    '     ': '',
     'Notes': reconciliation.notes || '',
   });
 }
