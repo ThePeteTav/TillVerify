@@ -9,6 +9,35 @@ import Dashboard from "@/pages/Dashboard";
 import NotFound from "@/pages/not-found";
 import AdminPanel from "@/components/AdminPanel";
 
+function AdminRoute() {
+  const { user } = useAuth();
+  const role = (user as any)?.role;
+  const isElevated = role === 'admin' || role === 'manager';
+
+  if (!isElevated) {
+    return <NotFound />;
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <header className="border-b bg-card">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Admin Panel</h1>
+          <button
+            onClick={() => window.location.href = '/'}
+            className="text-primary hover:underline"
+          >
+            Back to Dashboard
+          </button>
+        </div>
+      </header>
+      <main className="container mx-auto px-4 py-8">
+        <AdminPanel />
+      </main>
+    </div>
+  );
+}
+
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
 
@@ -19,24 +48,7 @@ function Router() {
       ) : (
         <>
           <Route path="/" component={Dashboard} />
-          <Route path="/admin" component={() => (
-            <div className="min-h-screen bg-background">
-              <header className="border-b bg-card">
-                <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-                  <h1 className="text-2xl font-bold">Admin Panel</h1>
-                  <button 
-                    onClick={() => window.location.href = '/'}
-                    className="text-primary hover:underline"
-                  >
-                    Back to Dashboard
-                  </button>
-                </div>
-              </header>
-              <main className="container mx-auto px-4 py-8">
-                <AdminPanel />
-              </main>
-            </div>
-          )} />
+          <Route path="/admin" component={AdminRoute} />
         </>
       )}
       <Route component={NotFound} />

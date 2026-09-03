@@ -160,7 +160,6 @@ export function generateReconciliationExcel(reconciliations: Reconciliation[]): 
       'ID': r.id,
       'Date': r.createdAt.toISOString(),
       'Employee': r.userName,
-      'Email': r.userEmail,
       'Status': r.status,
       '': '',
       'SALES SUMMARY': '',

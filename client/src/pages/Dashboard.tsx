@@ -1,14 +1,15 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Calculator, User, LogOut, Settings, BarChart3, ArrowLeft } from "lucide-react";
+import { Calculator, LogOut, ShieldCheck, ArrowLeft } from "lucide-react";
+import { Link } from "wouter";
 import SalesEntryForm, { type SalesData } from "@/components/SalesEntryForm";
 import DenominationInput, { type DenominationCounts } from "@/components/DenominationInput";
 import CheckEntry, { type CheckData } from "@/components/CheckEntry";
@@ -55,8 +56,11 @@ export default function Dashboard() {
     },
   });
 
-  const handleLogout = () => {
-    window.location.href = '/api/logout';
+  const queryClient = useQueryClient();
+
+  const handleLogout = async () => {
+    await apiRequest('POST', '/api/auth/logout');
+    queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
   };
 
   const handleSalesSubmit = () => {
@@ -165,11 +169,17 @@ export default function Dashboard() {
   };
 
   const getUserInitials = () => {
-    if (!user) return 'U';
-    const firstName = (user as any).firstName || '';
-    const lastName = (user as any).lastName || '';
-    return (firstName.charAt(0) + lastName.charAt(0)).toUpperCase() || (user as any).email?.charAt(0).toUpperCase() || 'U';
+    const name = (user as any)?.name || '';
+    return name
+      .split(' ')
+      .map((part: string) => part.charAt(0))
+      .join('')
+      .slice(0, 2)
+      .toUpperCase() || 'U';
   };
+
+  const role = (user as any)?.role;
+  const isElevated = role === 'admin' || role === 'manager';
 
   return (
     <div className="min-h-screen bg-background">
@@ -185,22 +195,28 @@ export default function Dashboard() {
           </div>
           
           <div className="flex items-center gap-4">
-            {/* todo: remove mock functionality - user profile */}
             <div className="flex items-center gap-3">
               <Avatar>
-                <AvatarImage src={(user as any)?.profileImageUrl} />
                 <AvatarFallback>{getUserInitials()}</AvatarFallback>
               </Avatar>
               <div className="text-right">
                 <p className="text-sm font-medium">
-                  {(user as any)?.firstName || (user as any)?.email || 'Employee'}
+                  {(user as any)?.name || 'Employee'}
                 </p>
-                <p className="text-xs text-muted-foreground">Cashier</p>
+                <p className="text-xs text-muted-foreground capitalize">{role || 'employee'}</p>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-2">
-              <SettingsDialog />
+              {isElevated && (
+                <Link href="/admin">
+                  <Button variant="outline" data-testid="button-admin-panel">
+                    <ShieldCheck className="h-4 w-4 mr-2" />
+                    Admin
+                  </Button>
+                </Link>
+              )}
+              {isElevated && <SettingsDialog />}
               <Button variant="outline" onClick={handleLogout} data-testid="button-logout">
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout

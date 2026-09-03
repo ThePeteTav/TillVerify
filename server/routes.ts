@@ -1,26 +1,65 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertReconciliationSchema, insertSettingsSchema } from "@shared/schema";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import { insertReconciliationSchema, insertSettingsSchema, insertEmployeeSchema, updateEmployeeSchema } from "@shared/schema";
+import { setupAuth, isAuthenticated, requireRole } from "./auth";
 import { generateReconciliationPDF, generateReconciliationExcel } from "./reportGenerator";
 import { submitToGoogleSheets } from "./googleSheets";
 
-export async function registerRoutes(app: Express): Promise<Server> {
-  await setupAuth(app);
+const ADMIN_ROLES = ["admin", "manager"];
 
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+export async function registerRoutes(app: Express): Promise<Server> {
+  setupAuth(app);
+
+  // --- Employee management (admin/manager only) ---
+
+  app.get("/api/employees", isAuthenticated, requireRole(ADMIN_ROLES), async (_req, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      res.json(user);
-    } catch (error) {
-      console.error("Error fetching user:", error);
-      res.status(500).json({ message: "Failed to fetch user" });
+      const allEmployees = await storage.getAllEmployees();
+      res.json(allEmployees);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
-  
-  app.get("/api/settings", async (req, res) => {
+
+  app.post("/api/employees", isAuthenticated, requireRole(ADMIN_ROLES), async (req, res) => {
+    try {
+      const validated = insertEmployeeSchema.parse(req.body);
+      const employee = await storage.createEmployee(validated);
+      res.status(201).json(employee);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.put("/api/employees/:id", isAuthenticated, requireRole(ADMIN_ROLES), async (req, res) => {
+    try {
+      const validated = updateEmployeeSchema.parse(req.body);
+      const employee = await storage.updateEmployee(req.params.id, validated);
+      if (!employee) {
+        return res.status(404).json({ error: "Employee not found" });
+      }
+      res.json(employee);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/employees/:id", isAuthenticated, requireRole(ADMIN_ROLES), async (req: any, res) => {
+    try {
+      if (req.params.id === req.employee.id) {
+        return res.status(400).json({ error: "You cannot delete your own account" });
+      }
+      await storage.deleteEmployee(req.params.id);
+      res.status(204).end();
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // --- Settings ---
+
+  app.get("/api/settings", async (_req, res) => {
     try {
       const settings = await storage.getSettings();
       res.json(settings);
@@ -29,7 +68,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/settings", isAuthenticated, async (req, res) => {
+  app.put("/api/settings", isAuthenticated, requireRole(ADMIN_ROLES), async (req, res) => {
     try {
       const validated = insertSettingsSchema.parse(req.body);
       const settings = await storage.updateSettings(validated);
@@ -39,18 +78,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // --- Reconciliations ---
+
   app.post("/api/reconciliations", isAuthenticated, async (req: any, res) => {
     try {
-      const user = req.user;
-      const userId = user.claims.sub;
-      const dbUser = await storage.getUser(userId);
-      
+      const employee = req.employee;
+
       const totalChecks = parseFloat(req.body.check1Amount || '0') + parseFloat(req.body.check2Amount || '0') + parseFloat(req.body.check3Amount || '0');
       const expectedDeposit = parseFloat(req.body.startingCash) + parseFloat(req.body.cashSales) + parseFloat(req.body.checkSales) - parseFloat(req.body.cashOut);
       const actualDeposit = parseFloat(req.body.cashCount) + totalChecks;
       const difference = actualDeposit - expectedDeposit;
       const expectedCash = parseFloat(req.body.startingCash) + parseFloat(req.body.cashSales) - parseFloat(req.body.cashOut);
-      
+
       const validated = insertReconciliationSchema.parse({
         cashSales: req.body.cashSales,
         checkSales: req.body.checkSales,
@@ -83,11 +122,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         difference: difference,
         notes: req.body.notes,
         status: req.body.status || 'completed',
-        userId: userId,
-        userName: dbUser?.firstName || dbUser?.email || 'Employee',
-        userEmail: dbUser?.email || 'unknown',
+        userId: employee.id,
+        userName: employee.name,
       });
-      
+
       const reconciliation = await storage.createReconciliation(validated);
       res.status(201).json(reconciliation);
     } catch (error: any) {
@@ -95,7 +133,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/reconciliations", isAuthenticated, async (req, res) => {
+  // All-history view: admin/manager only, since it spans every employee.
+  app.get("/api/reconciliations", isAuthenticated, requireRole(ADMIN_ROLES), async (req, res) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
       const reconciliations = await storage.getReconciliations(limit);
@@ -108,25 +147,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/reconciliations/:id", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      const userId = req.user.claims.sub;
       const reconciliation = await storage.getReconciliation(id);
-      
+
       if (!reconciliation) {
         return res.status(404).json({ error: "Reconciliation not found" });
       }
-      
-      if (reconciliation.userId !== userId) {
+
+      const isOwner = reconciliation.userId === req.employee.id;
+      const isElevated = ADMIN_ROLES.includes(req.employee.role);
+      if (!isOwner && !isElevated) {
         return res.status(403).json({ error: "Forbidden: You can only access your own reconciliations" });
       }
-      
+
       res.json(reconciliation);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.get("/api/reconciliations/user/:userId", isAuthenticated, async (req, res) => {
+  // Own history, or (for admin/manager) any employee's history.
+  app.get("/api/reconciliations/user/:userId", isAuthenticated, async (req: any, res) => {
     try {
+      const isElevated = ADMIN_ROLES.includes(req.employee.role);
+      if (req.params.userId !== req.employee.id && !isElevated) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
       const reconciliations = await storage.getReconciliationsByUser(req.params.userId);
       res.json(reconciliations);
     } catch (error: any) {
@@ -137,20 +182,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/reconciliations/:id/pdf", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      const userId = req.user.claims.sub;
       const reconciliation = await storage.getReconciliation(id);
-      
+
       if (!reconciliation) {
         return res.status(404).json({ error: "Reconciliation not found" });
       }
-      
-      if (reconciliation.userId !== userId) {
+
+      const isOwner = reconciliation.userId === req.employee.id;
+      const isElevated = ADMIN_ROLES.includes(req.employee.role);
+      if (!isOwner && !isElevated) {
         return res.status(403).json({ error: "Forbidden: You can only access your own reconciliations" });
       }
-      
+
       const settings = await storage.getSettings();
       const pdfBuffer = generateReconciliationPDF(reconciliation, settings);
-      
+
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename=reconciliation-${id}.pdf`);
       res.send(pdfBuffer);
@@ -161,13 +207,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/reconciliations/export/excel", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const reconciliations = await storage.getReconciliationsByUser(userId);
-      
+      const reconciliations = await storage.getReconciliationsByUser(req.employee.id);
+
       const excelBuffer = generateReconciliationExcel(reconciliations);
-      
+
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename=my-reconciliations.xlsx`);
+      res.send(excelBuffer);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // All-history export: admin/manager only.
+  app.get("/api/reconciliations/export/excel/all", isAuthenticated, requireRole(ADMIN_ROLES), async (_req, res) => {
+    try {
+      const reconciliations = await storage.getReconciliations(10000);
+      const excelBuffer = generateReconciliationExcel(reconciliations);
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=all-reconciliations.xlsx`);
       res.send(excelBuffer);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -177,32 +236,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/reconciliations/:id/submit", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      const userId = req.user.claims.sub;
       const reconciliation = await storage.getReconciliation(id);
-      
+
       if (!reconciliation) {
         return res.status(404).json({ error: "Reconciliation not found" });
       }
-      
-      if (reconciliation.userId !== userId) {
+
+      if (reconciliation.userId !== req.employee.id) {
         return res.status(403).json({ error: "Forbidden: You can only submit your own reconciliations" });
       }
-      
+
       if (reconciliation.isSubmitted) {
         return res.status(400).json({ error: "This reconciliation has already been submitted" });
       }
-      
+
       const settings = await storage.getSettings();
       const spreadsheetId = settings?.googleSheetId;
-      
+
       if (!spreadsheetId) {
         return res.status(400).json({ error: "Google Sheet ID not configured. Please configure it in settings." });
       }
-      
+
       await submitToGoogleSheets(reconciliation, spreadsheetId);
-      
+
       await storage.markReconciliationAsSubmitted(id);
-      
+
       const updatedReconciliation = await storage.getReconciliation(id);
       res.json(updatedReconciliation);
     } catch (error: any) {

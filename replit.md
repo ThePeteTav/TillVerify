@@ -45,9 +45,9 @@ Preferred communication style: Simple, everyday language.
 - `/api/reconciliations/:id/submit` - Submit reconciliation to Google Sheets (POST)
 - `/api/reports/*` - Generate PDF and Excel reports
 
-**Authentication**: OpenID Connect (OIDC) integration with Replit authentication service using Passport.js strategy. Session-based authentication with PostgreSQL session store (connect-pg-simple). Sessions configured with 7-day TTL and secure HTTP-only cookies.
+**Authentication**: PIN-based login. Employees pick their name from a list and enter a 4-5 digit PIN (bcrypt-hashed at rest) that acts as their digital signature; the login endpoint is rate-limited per IP. Session-based authentication with PostgreSQL session store (connect-pg-simple). Sessions configured with 7-day TTL and secure HTTP-only cookies. A `role` field ('employee' | 'manager' | 'admin') gates the admin panel and its APIs.
 
-**Database ORM**: Drizzle ORM with Neon serverless PostgreSQL driver. Schema-first approach with TypeScript type generation. Migrations managed via drizzle-kit.
+**Database ORM**: Drizzle ORM with the standard `pg` (node-postgres) driver, compatible with any Postgres host (Azure Database for PostgreSQL, Neon, etc.). Schema-first approach with TypeScript type generation. Migrations managed via drizzle-kit.
 
 **Report Generation**: 
 - PDF reports using jsPDF library (named import for version 3.x compatibility)
@@ -64,13 +64,13 @@ Preferred communication style: Simple, everyday language.
 
 ### Data Storage
 
-**Database**: PostgreSQL (Neon serverless)
+**Database**: PostgreSQL (any standard host — Azure Database for PostgreSQL in production)
 
 **Schema Design**:
 
-1. **users** table: Stores user profiles with OIDC integration
-   - Fields: id (UUID), email, firstName, lastName, profileImageUrl, timestamps
-   - Authentication data linked via OIDC subject identifier
+1. **employees** table: Stores employee login records
+   - Fields: id (UUID), name, pinHash (bcrypt), role, active, timestamps
+   - Role determines access to the admin panel and its APIs
 
 2. **sessions** table: Manages authenticated user sessions
    - Fields: sid (primary key), sess (JSONB), expire (timestamp)
@@ -93,18 +93,17 @@ Preferred communication style: Simple, everyday language.
 
 **Data Validation**: Zod schemas (drizzle-zod integration) ensure type safety and validation at database boundary. Decimal precision set to 10 digits with 2 decimal places for all monetary values.
 
-**In-Memory Fallback**: MemStorage class provides development/testing environment without requiring database provisioning. Implements same IStorage interface for consistency.
+**Storage**: DatabaseStorage is the sole runtime implementation, backed by Postgres via Drizzle — there is no in-memory fallback, so `DATABASE_URL` is required to run the app at all (including locally).
 
 ### Authentication & Authorization
 
-**Provider**: Replit OIDC (OpenID Connect) authentication service
+**Provider**: Self-hosted PIN login (no external identity provider)
 
 **Flow**: 
-1. Unauthenticated users see landing page with login button
-2. Login redirects to Replit OIDC provider
-3. Successful authentication creates server-side session
-4. User profile synced to local database on first login
-5. Session cookie enables authenticated API access
+1. Unauthenticated users see a landing page; "Employee Login" opens a picker of active employee names
+2. Employee selects their name and enters their PIN on a numeric keypad
+3. Server verifies the PIN against the bcrypt hash and creates a server-side session
+4. Session cookie enables authenticated API access
 
 **Session Management**: 
 - Server-side sessions stored in PostgreSQL
@@ -112,14 +111,15 @@ Preferred communication style: Simple, everyday language.
 - Secure, HTTP-only cookies prevent XSS attacks
 - Session secret configured via environment variable
 
-**Authorization**: isAuthenticated middleware protects sensitive routes. Current implementation focuses on employee-level access; admin/manager role differentiation present in UI but not enforced at API level.
+**Authorization**: `isAuthenticated` middleware loads the employee fresh from the DB on every request (so deactivating an employee revokes access immediately). `requireRole(['admin','manager'])` gates employee management, settings writes, and the all-history reports/reconciliations endpoints. Plain employees can only read/export their own reconciliations.
+
+**Bootstrapping the first admin**: since employees can only be created from the admin panel, and the admin panel requires an admin to log in, run `npm run seed:admin -- "Full Name" <PIN>` once against the target database to create the first admin account.
 
 ### External Dependencies
 
 **Third-Party Services**:
-1. **Replit Authentication (OIDC)**: Primary authentication provider requiring REPL_ID, ISSUER_URL, and SESSION_SECRET environment variables
-2. **Neon PostgreSQL**: Serverless database requiring DATABASE_URL environment variable
-3. **Google Sheets API**: Cloud data submission using service account authentication (requires credentials JSON and sheet ID configuration)
+1. **Postgres**: Any standard Postgres host works; requires the `DATABASE_URL` environment variable
+2. **Google Sheets API**: Cloud data submission using service account authentication (requires `GOOGLE_SERVICE_ACCOUNT_EMAIL`/`GOOGLE_PRIVATE_KEY` and a sheet ID configured in Settings)
 
 **Key NPM Packages**:
 - **UI Components**: @radix-ui/* (accordion, dialog, dropdown, popover, toast, alert, etc.)
@@ -136,4 +136,5 @@ Preferred communication style: Simple, everyday language.
 **Build & Deployment**:
 - Development: Vite dev server with HMR and custom middleware mode
 - Production: Vite builds client bundle to dist/public, esbuild bundles server to dist/index.js
-- Environment: Requires NODE_ENV, DATABASE_URL, REPL_ID, SESSION_SECRET, ISSUER_URL, REPLIT_DOMAINS
+- Environment: Requires NODE_ENV, DATABASE_URL, SESSION_SECRET, GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY (see .env.example)
+- Target host: Azure App Service (Node.js), database on Azure Database for PostgreSQL

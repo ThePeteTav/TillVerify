@@ -1,11 +1,13 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Calculator, Shield, FileText, TrendingUp, CheckCircle, Clock } from "lucide-react";
+import PinLogin from "@/components/PinLogin";
 
 export default function Landing() {
-  const handleLogin = () => {
-    window.location.href = '/api/login';
-  };
+  const [loginOpen, setLoginOpen] = useState(false);
+  const handleLogin = () => setLoginOpen(true);
 
   const features = [
     {
@@ -139,6 +141,15 @@ export default function Landing() {
           <p>&copy; 2024 Cash Reconciliation System. Professional financial accuracy you can trust.</p>
         </div>
       </footer>
+
+      <Dialog open={loginOpen} onOpenChange={setLoginOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogTitle className="sr-only">Employee Login</DialogTitle>
+          <div className="flex justify-center">
+            <PinLogin />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

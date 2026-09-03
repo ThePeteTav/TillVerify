@@ -13,12 +13,12 @@ export const sessions = pgTable(
   (table) => [index("IDX_session_expire").on(table.expire)],
 );
 
-export const users = pgTable("users", {
+export const employees = pgTable("employees", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  email: varchar("email").unique(),
-  firstName: varchar("first_name"),
-  lastName: varchar("last_name"),
-  profileImageUrl: varchar("profile_image_url"),
+  name: varchar("name").notNull(),
+  pinHash: varchar("pin_hash").notNull(),
+  role: text("role").notNull().default('employee'), // 'employee' | 'manager' | 'admin'
+  active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -37,8 +37,7 @@ export const reconciliations = pgTable("reconciliations", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull(),
   userName: text("user_name").notNull(),
-  userEmail: text("user_email").notNull(),
-  
+
   cashSales: decimal("cash_sales", { precision: 10, scale: 2 }).notNull(),
   checkSales: decimal("check_sales", { precision: 10, scale: 2 }).notNull(),
   cashOut: decimal("cash_out", { precision: 10, scale: 2 }).notNull(),
@@ -82,6 +81,23 @@ export const reconciliations = pgTable("reconciliations", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const insertEmployeeSchema = createInsertSchema(employees).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  pinHash: true,
+}).extend({
+  role: z.enum(['employee', 'manager', 'admin']).default('employee'),
+  pin: z.string().regex(/^\d{4,5}$/, "PIN must be 4-5 digits"),
+});
+
+export const updateEmployeeSchema = z.object({
+  name: z.string().min(1).optional(),
+  role: z.enum(['employee', 'manager', 'admin']).optional(),
+  active: z.boolean().optional(),
+  pin: z.string().regex(/^\d{4,5}$/, "PIN must be 4-5 digits").optional(),
+});
+
 export const insertSettingsSchema = createInsertSchema(settings).omit({
   id: true,
   updatedAt: true,
@@ -108,8 +124,10 @@ export const insertReconciliationSchema = createInsertSchema(reconciliations).om
   check3Amount: z.preprocess((val) => val ? String(val) : '0.00', z.string().optional()),
 });
 
-export type UpsertUser = typeof users.$inferInsert;
-export type User = typeof users.$inferSelect;
+export type Employee = typeof employees.$inferSelect;
+export type PublicEmployee = Omit<Employee, 'pinHash'>;
+export type InsertEmployee = z.infer<typeof insertEmployeeSchema>;
+export type UpdateEmployee = z.infer<typeof updateEmployeeSchema>;
 export type Settings = typeof settings.$inferSelect;
 export type InsertSettings = z.infer<typeof insertSettingsSchema>;
 export type Reconciliation = typeof reconciliations.$inferSelect;

@@ -1,13 +1,37 @@
-import { type User, type UpsertUser, type Reconciliation, type InsertReconciliation, type Settings, type InsertSettings } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { eq, desc } from "drizzle-orm";
+import bcrypt from "bcryptjs";
+import { db } from "./db";
+import { employees, settings, reconciliations } from "@shared/schema";
+import {
+  type Employee,
+  type PublicEmployee,
+  type InsertEmployee,
+  type UpdateEmployee,
+  type Reconciliation,
+  type InsertReconciliation,
+  type Settings,
+  type InsertSettings,
+} from "@shared/schema";
+
+const DEFAULT_SETTINGS_ID = 1;
+
+function toPublic(employee: Employee): PublicEmployee {
+  const { pinHash, ...rest } = employee;
+  return rest;
+}
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  upsertUser(user: UpsertUser): Promise<User>;
-  
+  getEmployee(id: string): Promise<Employee | undefined>;
+  getActiveEmployees(): Promise<PublicEmployee[]>;
+  getAllEmployees(): Promise<PublicEmployee[]>;
+  createEmployee(employee: InsertEmployee): Promise<PublicEmployee>;
+  updateEmployee(id: string, updates: UpdateEmployee): Promise<PublicEmployee | undefined>;
+  deleteEmployee(id: string): Promise<void>;
+  verifyPin(employeeId: string, pin: string): Promise<Employee | undefined>;
+
   getSettings(): Promise<Settings>;
   updateSettings(settings: InsertSettings): Promise<Settings>;
-  
+
   createReconciliation(reconciliation: InsertReconciliation): Promise<Reconciliation>;
   getReconciliation(id: number): Promise<Reconciliation | undefined>;
   getReconciliations(limit?: number): Promise<Reconciliation[]>;
@@ -15,145 +39,117 @@ export interface IStorage {
   markReconciliationAsSubmitted(id: number): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-  private reconciliations: Map<number, Reconciliation>;
-  private settings: Settings | undefined;
-  private nextReconciliationId: number;
-
-  constructor() {
-    this.users = new Map();
-    this.reconciliations = new Map();
-    this.nextReconciliationId = 1;
-    this.settings = {
-      id: 1,
-      startingCash: '200.00',
-      tolerance: '5.00',
-      requireManagerApproval: true,
-      googleSheetId: null,
-      companyLogo: null,
-      updatedAt: new Date(),
-    };
+export class DatabaseStorage implements IStorage {
+  async getEmployee(id: string): Promise<Employee | undefined> {
+    const [employee] = await db.select().from(employees).where(eq(employees.id, id));
+    return employee;
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  async getActiveEmployees(): Promise<PublicEmployee[]> {
+    const rows = await db.select().from(employees).where(eq(employees.active, true));
+    return rows.map(toPublic);
   }
 
-  async upsertUser(userData: UpsertUser): Promise<User> {
-    const existingUser = this.users.get(userData.id!);
-    const user: User = {
-      id: userData.id!,
-      email: userData.email || null,
-      firstName: userData.firstName || null,
-      lastName: userData.lastName || null,
-      profileImageUrl: userData.profileImageUrl || null,
-      createdAt: existingUser?.createdAt || new Date(),
+  async getAllEmployees(): Promise<PublicEmployee[]> {
+    const rows = await db.select().from(employees).orderBy(employees.name);
+    return rows.map(toPublic);
+  }
+
+  async createEmployee(employee: InsertEmployee): Promise<PublicEmployee> {
+    const pinHash = await bcrypt.hash(employee.pin, 10);
+    const [created] = await db
+      .insert(employees)
+      .values({
+        name: employee.name,
+        role: employee.role,
+        active: employee.active ?? true,
+        pinHash,
+      })
+      .returning();
+    return toPublic(created);
+  }
+
+  async updateEmployee(id: string, updates: UpdateEmployee): Promise<PublicEmployee | undefined> {
+    const patch: Partial<typeof employees.$inferInsert> = {
       updatedAt: new Date(),
     };
-    this.users.set(user.id, user);
-    return user;
+    if (updates.name !== undefined) patch.name = updates.name;
+    if (updates.role !== undefined) patch.role = updates.role;
+    if (updates.active !== undefined) patch.active = updates.active;
+    if (updates.pin !== undefined) patch.pinHash = await bcrypt.hash(updates.pin, 10);
+
+    const [updated] = await db
+      .update(employees)
+      .set(patch)
+      .where(eq(employees.id, id))
+      .returning();
+    return updated ? toPublic(updated) : undefined;
+  }
+
+  async deleteEmployee(id: string): Promise<void> {
+    await db.delete(employees).where(eq(employees.id, id));
+  }
+
+  async verifyPin(employeeId: string, pin: string): Promise<Employee | undefined> {
+    const employee = await this.getEmployee(employeeId);
+    if (!employee || !employee.active) return undefined;
+    const matches = await bcrypt.compare(pin, employee.pinHash);
+    return matches ? employee : undefined;
   }
 
   async getSettings(): Promise<Settings> {
-    if (!this.settings) {
-      this.settings = {
-        id: 1,
-        startingCash: '200.00',
-        tolerance: '5.00',
-        requireManagerApproval: true,
-        googleSheetId: null,
-        companyLogo: null,
-        updatedAt: new Date(),
-      };
-    }
-    return this.settings;
+    const [existing] = await db.select().from(settings).where(eq(settings.id, DEFAULT_SETTINGS_ID));
+    if (existing) return existing;
+
+    const [created] = await db
+      .insert(settings)
+      .values({ id: DEFAULT_SETTINGS_ID })
+      .onConflictDoNothing()
+      .returning();
+    if (created) return created;
+
+    const [fallback] = await db.select().from(settings).where(eq(settings.id, DEFAULT_SETTINGS_ID));
+    return fallback;
   }
 
   async updateSettings(insertSettings: InsertSettings): Promise<Settings> {
-    const currentSettings = await this.getSettings();
-    const updated: Settings = {
-      id: currentSettings.id,
-      startingCash: insertSettings.startingCash || currentSettings.startingCash,
-      tolerance: insertSettings.tolerance || currentSettings.tolerance,
-      requireManagerApproval: insertSettings.requireManagerApproval !== undefined ? insertSettings.requireManagerApproval : currentSettings.requireManagerApproval,
-      googleSheetId: insertSettings.googleSheetId !== undefined ? insertSettings.googleSheetId || null : currentSettings.googleSheetId,
-      companyLogo: insertSettings.companyLogo !== undefined ? insertSettings.companyLogo || null : currentSettings.companyLogo,
-      updatedAt: new Date(),
-    };
-    this.settings = updated;
+    await this.getSettings();
+    const [updated] = await db
+      .update(settings)
+      .set({ ...insertSettings, updatedAt: new Date() })
+      .where(eq(settings.id, DEFAULT_SETTINGS_ID))
+      .returning();
     return updated;
   }
 
   async createReconciliation(insertReconciliation: InsertReconciliation): Promise<Reconciliation> {
-    const id = this.nextReconciliationId++;
-    const reconciliation: Reconciliation = {
-      id,
-      userId: insertReconciliation.userId,
-      userName: insertReconciliation.userName,
-      userEmail: insertReconciliation.userEmail,
-      cashSales: insertReconciliation.cashSales,
-      checkSales: insertReconciliation.checkSales,
-      cashOut: insertReconciliation.cashOut,
-      startingCash: insertReconciliation.startingCash,
-      check1Date: insertReconciliation.check1Date || null,
-      check1Number: insertReconciliation.check1Number || null,
-      check1Name: insertReconciliation.check1Name || null,
-      check1Amount: insertReconciliation.check1Amount || '0.00',
-      check2Date: insertReconciliation.check2Date || null,
-      check2Number: insertReconciliation.check2Number || null,
-      check2Name: insertReconciliation.check2Name || null,
-      check2Amount: insertReconciliation.check2Amount || '0.00',
-      check3Date: insertReconciliation.check3Date || null,
-      check3Number: insertReconciliation.check3Number || null,
-      check3Name: insertReconciliation.check3Name || null,
-      check3Amount: insertReconciliation.check3Amount || '0.00',
-      hundreds: insertReconciliation.hundreds || 0,
-      fifties: insertReconciliation.fifties || 0,
-      twenties: insertReconciliation.twenties || 0,
-      tens: insertReconciliation.tens || 0,
-      fives: insertReconciliation.fives || 0,
-      ones: insertReconciliation.ones || 0,
-      quarters: insertReconciliation.quarters || 0,
-      dimes: insertReconciliation.dimes || 0,
-      nickels: insertReconciliation.nickels || 0,
-      pennies: insertReconciliation.pennies || 0,
-      cashCount: insertReconciliation.cashCount,
-      expectedCash: insertReconciliation.expectedCash,
-      difference: insertReconciliation.difference,
-      notes: insertReconciliation.notes || null,
-      status: insertReconciliation.status || 'completed',
-      isSubmitted: false,
-      submittedAt: null,
-      createdAt: new Date(),
-    };
-    this.reconciliations.set(id, reconciliation);
-    return reconciliation;
+    const [created] = await db.insert(reconciliations).values(insertReconciliation).returning();
+    return created;
   }
 
   async getReconciliation(id: number): Promise<Reconciliation | undefined> {
-    return this.reconciliations.get(id);
+    const [reconciliation] = await db.select().from(reconciliations).where(eq(reconciliations.id, id));
+    return reconciliation;
   }
 
   async getReconciliations(limit: number = 100): Promise<Reconciliation[]> {
-    const all = Array.from(this.reconciliations.values());
-    return all.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, limit);
+    return db.select().from(reconciliations).orderBy(desc(reconciliations.createdAt)).limit(limit);
   }
 
   async getReconciliationsByUser(userId: string): Promise<Reconciliation[]> {
-    return Array.from(this.reconciliations.values())
-      .filter(r => r.userId === userId)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return db
+      .select()
+      .from(reconciliations)
+      .where(eq(reconciliations.userId, userId))
+      .orderBy(desc(reconciliations.createdAt));
   }
 
   async markReconciliationAsSubmitted(id: number): Promise<void> {
-    const reconciliation = this.reconciliations.get(id);
-    if (reconciliation) {
-      reconciliation.isSubmitted = true;
-      reconciliation.submittedAt = new Date();
-      this.reconciliations.set(id, reconciliation);
-    }
+    await db
+      .update(reconciliations)
+      .set({ isSubmitted: true, submittedAt: new Date() })
+      .where(eq(reconciliations.id, id));
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();

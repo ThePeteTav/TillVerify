@@ -47,7 +47,6 @@ export async function submitToGoogleSheets(
     'Reconciliation ID': reconciliation.id,
     'Date': new Date(reconciliation.createdAt).toLocaleString(),
     'Employee': reconciliation.userName,
-    'Email': reconciliation.userEmail,
     'Status': reconciliation.status,
     '': '',
     'Cash Sales': `$${parseFloat(reconciliation.cashSales).toFixed(2)}`,
